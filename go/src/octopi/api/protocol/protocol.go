@@ -72,7 +72,6 @@ type ProdLeadInit struct {
 // from a particular topic.
 type SubscribeRequest struct {
 	MessageSrc int // XXX: should use inheritance here.
-	HostPort   string
 	Topic      string
 	// TODO: other fields to identify position of wanted
 }

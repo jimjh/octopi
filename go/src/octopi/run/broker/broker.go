@@ -48,7 +48,7 @@ func producerHandler(ws *websocket.Conn) {
 
 	err := websocket.JSON.Receive(ws, &pli)
 	if nil != err || pli.MessageSrc != protocol.PRODUCER {
-		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		ws.Close()
 		return
 	}
@@ -77,11 +77,12 @@ func consumerHandler(ws *websocket.Conn) {
 
 	err := websocket.JSON.Receive(ws, &request)
 	if nil != err || request.MessageSrc != protocol.CONSUMER {
-		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		return
 	}
 
 	// TODO: catchup
+	log.Info("Received subscribe request from %v.", ws.LocalAddr())
 	if err != broker.RegisterConsumer(ws, &request) { // this should block
 		log.Error(err.Error())
 	}
@@ -97,7 +98,7 @@ func brokerHandler(ws *websocket.Conn) {
 
 	// close if message is corrupted or invalid
 	if nil != err || fli.MessageSrc != protocol.BROKER {
-		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		ws.Close()
 		return
 	}
@@ -109,9 +110,17 @@ func brokerHandler(ws *websocket.Conn) {
 // main starts a broker instance.
 func main() {
 
-	// TODO: add command line arguments for register
 	log.SetPrefix("broker: ")
-	broker := registerBroker("", "", "")
+	log.SetVerbose(log.INFO)
+
+	if false {
+		// TODO: add command line arguments for register
+		broker = registerBroker("", "", "")
+	} else { // standalone mode
+		config := protocol.RegBrokerInit{Role: protocol.LEADER}
+		broker, _ = brokerimpl.NewBroker(config, nil)
+	}
+	// TODO: single-partition mode
 
 	if broker.Role() == protocol.LEADER {
 		http.Handle("/producer", websocket.Handler(producerHandler))
@@ -119,10 +128,10 @@ func main() {
 	}
 
 	http.Handle("/consumer", websocket.Handler(consumerHandler))
+	log.Info("Listening on 12345 ...")
+
 	http.ListenAndServe(":12345", nil)
 	// XXX: port number should be configurable
-
-	log.Info("Started on 12345.")
 
 }
 
