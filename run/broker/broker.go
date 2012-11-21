@@ -40,14 +40,53 @@ func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokeri
 }
 
 func ProdHandler(ws *websocket.Conn){
-	
+	var pli messageapi.ProdLeadInit
+	err := websocket.JSON.Receive(ws, &pli)
+	/* close the connection and return if invalid request */
+	if nil != err || pli.MessageSrc!=messageapi.PRODUCER{
+		ws.Close()
+		return
+	}
+	broker.RegProd(ws, pli)
+	//TODO: send catchup if not
+	for {
+		var pubMsg messageapi.PubMsg
+		err := websocket.JSON.Receive(ws, &pubMsg)
+		if nil != err{
+			broker.RemoveProd(pli)
+			ws.Close()
+			return
+		}
+		broker.FollowBroadcast(pubMsg)
+		//TODO: send message to consumers
+	}
 }
 
 func ConsHandler(ws *websocket.Conn){
+	var cbi messageapi.ConsBrokerInit
+	err := websocket.JSON.Receive(ws, &cbi)
+	if nil != err||cbi.MessageSrc!=messageapi.CONSUMER{
+		ws.Close()
+		return
+	}
+	//TODO: send catchup if not
+	/* failed because topic does not exist */
+	err = broker.RegCons(ws, cbi)
+	if err!=nil{
+		ws.Close()
+		return
+	}
 	
+	//TODO: preserve connection through blocking call. use receive?
 }
 
 func BrokerHandler(ws *websocket.Conn){
+	var fli messageapi.FollowLeadInit
+	err := websocket.JSON.Receive(ws, &fli)
+	if nil !=err||fli.MessageSrc!=messageapi.BROKER{
+		ws.Close()
+		return
+	}
 	
 }
 

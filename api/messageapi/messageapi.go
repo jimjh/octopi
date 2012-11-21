@@ -28,6 +28,7 @@ type RegBrokerInit struct{
 	Role int
 	LeadUrl string //url of the leader, for followers
 	LeadOrigin string //origin of the leader, for followers
+	Brokers *list.List //list of associated brokers used if new leader
 	Topics *list.List //topics assigned by the register server 
 }
 
@@ -59,5 +60,25 @@ type RegConsInit struct{
 type FollowLeadInit struct{
 	MessageSrc int
 	HostPort string
-	//other fields to identify position of log
+	//TODO: other fields to identify position of log
 }
+
+type ProdLeadInit struct{
+	MessageSrc int
+	HostPort string
+	Topic string
+}
+
+type ConsBrokerInit struct{
+	MessageSrc int
+	HostPort string
+	Topic string
+	//TODO: other fields to identify position of wanted
+}
+
+/* used by producers to send publications to brokers*/
+type PubMsg struct{
+	Topic string
+	Message string
+}
+
