@@ -2,13 +2,9 @@ package brokerimpl
 
 import(
 	"code.google.com/p/go.net/websocket"
+	"octopi/api/messageapi"
 	"container/list"
 	"sync"
-)
-
-const(
-	LEADER = iota
-	FOLLOWER
 )
 
 type Broker struct{
@@ -24,28 +20,24 @@ type Broker struct{
 	lock sync.Mutex //lock to manage broker access
 }
 
-type RegBrokerAssign struct{
-	Role int
-	LeadUrl string //url of the leader, for followers
-	LeadOrigin string //origin of the leader, for followers
-}
-
-func NewBroker(rba RegBrokerAssign, regconn *websocket.Conn) *Broker{
+func NewBroker(rbi messageapi.RegBrokerInit, regconn *websocket.Conn) (*Broker, error){
 	b := &Broker{
-		role: rba.Role,
+		role: rbi.Role,
 		consumers: list.New(),
-		topics: list.New(),
-		leadUrl: rba.LeadUrl,
-		leadOrigin: rba.LeadOrigin,
+		topics: rbi.Topics,
+		leadUrl: rbi.LeadUrl,
+		leadOrigin: rbi.LeadOrigin,
 	}
-	if rba.Role==LEADER{
+	if rbi.Role==messageapi.LEADER{
 		b.brokers = list.New()
 		b.producers = list.New()
-		//TODO: CONTINUE HERE!
+		b.regConn = regconn
 	} else{
-		//TODO: DIAL LEADCONN
+		leadConn, err := websocket.Dial(rbi.LeadUrl, "", rbi.LeadOrigin)
+		if nil != err { return nil, err }	
+		b.leadConn = leadConn
 	}
-	return b
+	return b, nil
 }
 
 func (b *Broker) Role() int{

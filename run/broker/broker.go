@@ -3,6 +3,7 @@ package main
 import(
 	"code.google.com/p/go.net/websocket"
 	"octopi/impl/brokerimpl"
+	"octopi/api/messageapi"
 	"net/http"
 	"fmt"
 	"os"
@@ -16,44 +17,45 @@ func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokeri
 	/* fatal error if connection or messages failed */
 	checkError(err)
 	
+	bri := messageapi.BrokerRegInit{messageapi.BROKER, myHostPort}
 	/* send relevant broker information to register */
-	err = websocket.Message.Send(regconn, myHostPort)
+	err = websocket.JSON.Send(regconn, bri)
 	checkError(err)
 	
 	/* receive register assignments */
-	var rba brokerimpl.RegBrokerAssign
-	err = websocket.JSON.Receive(regconn, &rba)
+	var rbi messageapi.RegBrokerInit
+	err = websocket.JSON.Receive(regconn, &rbi)
 	checkError(err)
 	
 	/* create the broker based on JSON from register server */
-	b := brokerimpl.NewBroker(rba, regconn)
+	b, err := brokerimpl.NewBroker(rbi, regconn)
+	checkError(err)
 	
 	/* close the connection if broker not assigned as leader */
-	if b.Role() != brokerimpl.LEADER{
+	if b.Role() != messageapi.LEADER{
 		regconn.Close()
 	}
 
-	//TODO: continue here!
 	return b
 }
 
 func ProdHandler(ws *websocket.Conn){
-
+	
 }
 
 func ConsHandler(ws *websocket.Conn){
-
+	
 }
 
 func BrokerHandler(ws *websocket.Conn){
-
+	
 }
 
 func main(){
 	//TODO: add command line arguments for register
 	broker := registerBroker("", "", "")
 	
-	if broker.Role()==brokerimpl.LEADER{
+	if broker.Role()==messageapi.LEADER{
 		http.Handle("/prodconn", websocket.Handler(ProdHandler))
 		http.Handle("/brokerconn", websocket.Handler(BrokerHandler))
 	}
