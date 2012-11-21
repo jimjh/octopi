@@ -2,15 +2,16 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"fmt"
+	"log"
 	"net/http"
 	"octopi/api/messageapi"
 	"octopi/impl/brokerimpl"
-	"os"
 )
 
+// Global broker object - one broker per process
 var broker *brokerimpl.Broker
 
+// registerBroker
 func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokerimpl.Broker {
 	/* connect to register server */
 	regconn, err := websocket.Dial(regUrl, "", regOrigin)
@@ -39,14 +40,18 @@ func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokeri
 	return b
 }
 
-func ProdHandler(ws *websocket.Conn) {
+// producerHandler handles incoming produce requests.
+func producerHandler(ws *websocket.Conn) {
+
 	var pli messageapi.ProdLeadInit
+
 	err := websocket.JSON.Receive(ws, &pli)
-	/* close the connection and return if invalid request */
 	if nil != err || pli.MessageSrc != messageapi.PRODUCER {
+		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
+
 	broker.RegProd(ws, pli)
 	//TODO: send catchup if not
 	for {
@@ -60,16 +65,22 @@ func ProdHandler(ws *websocket.Conn) {
 		broker.FollowBroadcast(pubMsg)
 		//TODO: send message to consumers
 	}
+
 }
 
-func ConsHandler(ws *websocket.Conn) {
+// consumerHandler handles incoming consume requests.
+func consumerHandler(ws *websocket.Conn) {
+
 	var cbi messageapi.ConsBrokerInit
+
 	err := websocket.JSON.Receive(ws, &cbi)
 	if nil != err || cbi.MessageSrc != messageapi.CONSUMER {
+		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
-	//TODO: send catchup if not
+
+	// TODO: send catchup if not
 	/* failed because topic does not exist */
 	err = broker.RegCons(ws, cbi)
 	if err != nil {
@@ -77,34 +88,51 @@ func ConsHandler(ws *websocket.Conn) {
 		return
 	}
 
-	//TODO: preserve connection through blocking call. use receive?
+	// TODO: preserve connection through blocking call. use receive?
+
 }
 
-func BrokerHandler(ws *websocket.Conn) {
+// brokerHandler handles incoming broker requests.
+func brokerHandler(ws *websocket.Conn) {
+
 	var fli messageapi.FollowLeadInit
+
 	err := websocket.JSON.Receive(ws, &fli)
+
+	// close if message is corrupted or invalid
 	if nil != err || fli.MessageSrc != messageapi.BROKER {
+		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
 
+	// TODO: do something on success
+
 }
 
+// main starts a broker instance.
 func main() {
-	//TODO: add command line arguments for register
+
+	// TODO: add command line arguments for register
 	broker := registerBroker("", "", "")
 
 	if broker.Role() == messageapi.LEADER {
-		http.Handle("/prodconn", websocket.Handler(ProdHandler))
-		http.Handle("/brokerconn", websocket.Handler(BrokerHandler))
+		http.Handle("/producer", websocket.Handler(producerHandler))
+		http.Handle("/broker", websocket.Handler(brokerHandler))
 	}
-	http.Handle("/consconn", websocket.Handler(ConsHandler))
+
+	http.Handle("/consumer", websocket.Handler(consumerHandler))
 	http.ListenAndServe(":12345", nil)
+	// XXX: port number should be configurable
+
+	log.SetPrefix("broker: ")
+	log.Println("started on 12345")
+
 }
 
+// checkError logs a fatal error message and exits if `err` is not nil.
 func checkError(err error) {
-	if err != nil {
-		fmt.Println("Fatal Error ", err.Error())
-		os.Exit(1)
+	if nil != err {
+		log.Fatal(err.Error())
 	}
 }

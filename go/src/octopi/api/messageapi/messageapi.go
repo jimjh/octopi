@@ -60,7 +60,7 @@ type RegConsInit struct {
 type FollowLeadInit struct {
 	MessageSrc int
 	HostPort   string
-	//TODO: other fields to identify position of log
+	// TODO: other fields to identify position of log
 }
 
 type ProdLeadInit struct {
