@@ -54,7 +54,7 @@ func producerHandler(ws *websocket.Conn) {
 	}
 
 	broker.RegProd(ws, pli)
-	//TODO: send catchup if not
+	// TODO: send catchup if not
 	for {
 		var pubMsg protocol.PubMsg
 		err := websocket.JSON.Receive(ws, &pubMsg)
@@ -64,7 +64,7 @@ func producerHandler(ws *websocket.Conn) {
 			return
 		}
 		broker.FollowBroadcast(pubMsg)
-		//TODO: send message to consumers
+		// TODO: send message to consumers
 	}
 
 }

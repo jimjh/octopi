@@ -7,15 +7,15 @@ import (
 // Subscriptions are used to store consumer connections; each subscription has
 // a go channel that relays messages to the consumer.
 type Subscription struct {
-	conn *websocket.Conn // consumer websocket connection
-	send chan string     // go channel for relaying messages
+	conn *websocket.Conn  // consumer websocket connection
+	send chan interface{} // go channel for relaying messages
 }
 
 // NewSubscription creates a new subscription.
 func NewSubscription(conn *websocket.Conn) *Subscription {
 	return &Subscription{
 		conn: conn,
-		send: make(chan string),
+		send: make(chan interface{}, 1), // TODO: make this more robust
 	}
 }
 

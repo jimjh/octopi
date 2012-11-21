@@ -20,7 +20,6 @@ type Broker struct {
 	leadUrl       string                     // url of the leader, for followers
 	leadOrigin    string                     // origin of the leader, for followers
 	leadConn      *websocket.Conn            // connection to the leader, for followers
-	regConn       *websocket.Conn            // connection to the register, for leaders
 	lock          sync.Mutex                 //  lock to manage broker access
 }
 
@@ -40,7 +39,6 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*websocket.Conn)
 		b.prodTopicsMap = make(map[string]*list.List)
-		b.regConn = regconn
 
 		//TODO: make websocket connection to brokers. use rbi.Brokers
 	} else {
