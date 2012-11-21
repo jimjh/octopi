@@ -4,7 +4,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"container/list"
 	"errors"
-	"octopi/api/messageapi"
+	"octopi/api/protocol"
 	"sync"
 )
 
@@ -25,7 +25,7 @@ type Broker struct {
 	lock          sync.Mutex                 //lock to manage broker access
 }
 
-func NewBroker(rbi messageapi.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
+func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
 
 	/* create the broker */
 	b := &Broker{
@@ -42,7 +42,7 @@ func NewBroker(rbi messageapi.RegBrokerInit, regconn *websocket.Conn) (*Broker, 
 	}
 
 	/* only initialize these variables if leader. otherwise leave as nil */
-	if rbi.Role == messageapi.LEADER {
+	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*websocket.Conn)
 		b.prodTopicsMap = make(map[string]*list.List)
 		b.regConn = regconn
@@ -59,14 +59,14 @@ func NewBroker(rbi messageapi.RegBrokerInit, regconn *websocket.Conn) (*Broker, 
 	return b, nil
 }
 
-func (b *Broker) RegProd(ws *websocket.Conn, pli messageapi.ProdLeadInit) {
+func (b *Broker) RegProd(ws *websocket.Conn, pli protocol.ProdLeadInit) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	wsc := WebSocketConn{pli.HostPort, ws}
 	b.prodTopicsMap[pli.Topic].PushBack(wsc)
 }
 
-func (b *Broker) RemoveProd(pli messageapi.ProdLeadInit) {
+func (b *Broker) RemoveProd(pli protocol.ProdLeadInit) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	l := b.prodTopicsMap[pli.Topic]
@@ -78,7 +78,7 @@ func (b *Broker) RemoveProd(pli messageapi.ProdLeadInit) {
 	}
 }
 
-func (b *Broker) FollowBroadcast(msg messageapi.PubMsg) {
+func (b *Broker) FollowBroadcast(msg protocol.PubMsg) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	/* loop through all follwing broker connections and send message to update */
@@ -87,7 +87,7 @@ func (b *Broker) FollowBroadcast(msg messageapi.PubMsg) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg messageapi.PubMsg) {
+func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.PubMsg) {
 	err := websocket.JSON.Send(ws, msg)
 	if nil != err {
 		b.lock.Lock()
@@ -97,7 +97,7 @@ func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg messageap
 	}
 }
 
-func (b *Broker) RegCons(ws *websocket.Conn, cbi messageapi.ConsBrokerInit) error {
+func (b *Broker) RegCons(ws *websocket.Conn, cbi protocol.ConsBrokerInit) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	/* topic does not exist! return error */
@@ -110,7 +110,7 @@ func (b *Broker) RegCons(ws *websocket.Conn, cbi messageapi.ConsBrokerInit) erro
 	return nil
 }
 
-func (b *Broker) RegBroker(ws *websocket.Conn, fli messageapi.FollowLeadInit) {
+func (b *Broker) RegBroker(ws *websocket.Conn, fli protocol.FollowLeadInit) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 

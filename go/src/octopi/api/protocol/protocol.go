@@ -1,4 +1,4 @@
-package messageapi
+package protocol
 
 import (
 	"container/list"
