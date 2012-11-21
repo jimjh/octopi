@@ -117,8 +117,10 @@ func main() {
 		// TODO: add command line arguments for register
 		broker = registerBroker("", "", "")
 	} else { // standalone mode
+		var err error
 		config := protocol.RegBrokerInit{Role: protocol.LEADER}
-		broker, _ = brokerimpl.NewBroker(config, nil)
+		broker, err = brokerimpl.NewBroker(config, nil)
+		checkError(err)
 	}
 	// TODO: single-partition mode
 
