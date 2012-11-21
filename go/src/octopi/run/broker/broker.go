@@ -2,10 +2,10 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"log"
 	"net/http"
 	"octopi/api/messageapi"
 	"octopi/impl/brokerimpl"
+	"octopi/util/log"
 )
 
 // Global broker object - one broker per process
@@ -47,7 +47,7 @@ func producerHandler(ws *websocket.Conn) {
 
 	err := websocket.JSON.Receive(ws, &pli)
 	if nil != err || pli.MessageSrc != messageapi.PRODUCER {
-		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
@@ -75,7 +75,7 @@ func consumerHandler(ws *websocket.Conn) {
 
 	err := websocket.JSON.Receive(ws, &cbi)
 	if nil != err || cbi.MessageSrc != messageapi.CONSUMER {
-		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
@@ -101,7 +101,7 @@ func brokerHandler(ws *websocket.Conn) {
 
 	// close if message is corrupted or invalid
 	if nil != err || fli.MessageSrc != messageapi.BROKER {
-		log.Printf("Ignoring invalid message from %v.", ws.RemoteAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
@@ -114,6 +114,7 @@ func brokerHandler(ws *websocket.Conn) {
 func main() {
 
 	// TODO: add command line arguments for register
+	log.SetPrefix("broker: ")
 	broker := registerBroker("", "", "")
 
 	if broker.Role() == messageapi.LEADER {
@@ -125,8 +126,7 @@ func main() {
 	http.ListenAndServe(":12345", nil)
 	// XXX: port number should be configurable
 
-	log.SetPrefix("broker: ")
-	log.Println("started on 12345")
+	log.Info("Started on 12345.")
 
 }
 
