@@ -1,0 +1,5 @@
+go/bin/**
+go/pkg/**
+go/src/code.google.com/**
+
+.DS_Store
