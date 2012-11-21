@@ -13,6 +13,7 @@ var broker *brokerimpl.Broker
 
 // registerBroker
 func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokerimpl.Broker {
+
 	/* connect to register server */
 	regconn, err := websocket.Dial(regUrl, "", regOrigin)
 	/* fatal error if connection or messages failed */
@@ -71,24 +72,19 @@ func producerHandler(ws *websocket.Conn) {
 // consumerHandler handles incoming consume requests.
 func consumerHandler(ws *websocket.Conn) {
 
-	var cbi protocol.ConsBrokerInit
+	var request protocol.SubscribeRequest
+	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &cbi)
-	if nil != err || cbi.MessageSrc != protocol.CONSUMER {
+	err := websocket.JSON.Receive(ws, &request)
+	if nil != err || request.MessageSrc != protocol.CONSUMER {
 		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
-		ws.Close()
 		return
 	}
 
-	// TODO: send catchup if not
-	/* failed because topic does not exist */
-	err = broker.RegCons(ws, cbi)
-	if err != nil {
-		ws.Close()
-		return
+	// TODO: catchup
+	if err != broker.RegisterConsumer(ws, &request) { // this should block
+		log.Error(err.Error())
 	}
-
-	// TODO: preserve connection through blocking call. use receive?
 
 }
 

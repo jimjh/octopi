@@ -3,7 +3,6 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"container/list"
-	"errors"
 	"octopi/api/protocol"
 	"sync"
 )
@@ -14,15 +13,15 @@ type WebSocketConn struct {
 }
 
 type Broker struct {
-	role          int                        //role of the broker
-	brokerConns   map[string]*websocket.Conn //map of assoc broker hostport to connections, for leaders
-	prodTopicsMap map[string]*list.List      //map of topics to producer connections
-	consTopicsMap map[string]*list.List      //list of topics to consumer connections
-	leadUrl       string                     //url of the leader, for followers
-	leadOrigin    string                     //origin of the leader, for followers
-	leadConn      *websocket.Conn            //connection to the leader, for followers
-	regConn       *websocket.Conn            //connection to the register, for leaders
-	lock          sync.Mutex                 //lock to manage broker access
+	role          int                        // role of the broker
+	brokerConns   map[string]*websocket.Conn // map of assoc broker hostport to connections, for leaders
+	prodTopicsMap map[string]*list.List      // map of topics to producer connections
+	subscriptions map[string]*list.List      // map of topics to consumer connections
+	leadUrl       string                     // url of the leader, for followers
+	leadOrigin    string                     // origin of the leader, for followers
+	leadConn      *websocket.Conn            // connection to the leader, for followers
+	regConn       *websocket.Conn            // connection to the register, for leaders
+	lock          sync.Mutex                 //  lock to manage broker access
 }
 
 func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
@@ -30,16 +29,12 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	/* create the broker */
 	b := &Broker{
 		role:          rbi.Role,
-		consTopicsMap: make(map[string]*list.List),
+		subscriptions: make(map[string]*list.List),
 		leadUrl:       rbi.LeadUrl,
 		leadOrigin:    rbi.LeadOrigin,
 	}
 
-	/* initialize list of connections for each topic */
-	l := rbi.Topics
-	for e := l.Front(); e != nil; e = e.Next() {
-		b.consTopicsMap[e.Value.(string)] = list.New()
-	}
+	// XXX: topics are freely created - this is pub/sub convention.
 
 	/* only initialize these variables if leader. otherwise leave as nil */
 	if rbi.Role == protocol.LEADER {
@@ -97,17 +92,35 @@ func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.
 	}
 }
 
-func (b *Broker) RegCons(ws *websocket.Conn, cbi protocol.ConsBrokerInit) error {
+// RegisterConsumer creates a new subscription for the given consumer.
+//
+// Consumers are allowed to register for non-existent topics, but will not
+// receive any messages until a producer publishes a message under that topic.
+//
+// This method blocks until the websocket connection is broken.
+func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeRequest) error {
+
+	// create new subscription
+	subscription := NewSubscription(conn)
+	var subscriptions *list.List
+
 	b.lock.Lock()
-	defer b.lock.Unlock()
-	/* topic does not exist! return error */
-	if nil == b.consTopicsMap[cbi.Topic] {
-		return errors.New("Topic does not exist")
+
+	// save subscription (XXX: what if the same consumer subscribes twice?)
+	subscriptions, exists := b.subscriptions[req.Topic]
+	if !exists {
+		b.subscriptions[req.Topic] = list.New()
+		subscriptions = b.subscriptions[req.Topic]
 	}
-	/* save connection in list of consumer topics map */
-	wsc := WebSocketConn{cbi.HostPort, ws}
-	b.consTopicsMap[cbi.Topic].PushBack(wsc)
+	subscriptions.PushBack(subscription)
+
+	b.lock.Unlock()
+
+	// serve (blocking call)
+	subscription.Serve()
+
 	return nil
+
 }
 
 func (b *Broker) RegBroker(ws *websocket.Conn, fli protocol.FollowLeadInit) {

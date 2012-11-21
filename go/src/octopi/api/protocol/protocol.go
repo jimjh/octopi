@@ -4,20 +4,20 @@ import (
 	"container/list"
 )
 
-/* constants for contacting register server */
+// Constants for contacting register.
 const (
 	BROKER = iota
 	PRODUCER
 	CONSUMER
 )
 
-/* constants for register to tell which role a broker is taking */
+// Constants for register to tell which role a broker is taking.
 const (
 	LEADER = iota
 	FOLLOWER
 )
 
-/* used by brokers to contact register */
+// Used by brokers to contact register.
 type BrokerRegInit struct {
 	MessageSrc int
 	HostPort   string
@@ -29,7 +29,6 @@ type RegBrokerInit struct {
 	LeadUrl    string     //url of the leader, for followers
 	LeadOrigin string     //origin of the leader, for followers
 	Brokers    *list.List //list of associated brokers used if new leader
-	Topics     *list.List //topics assigned by the register server
 }
 
 /* used by producers to contact register */
@@ -69,11 +68,13 @@ type ProdLeadInit struct {
 	Topic      string
 }
 
-type ConsBrokerInit struct {
-	MessageSrc int
+// SubscribeRequests are sent from consumers to brokers when they want messages
+// from a particular topic.
+type SubscribeRequest struct {
+	MessageSrc int // XXX: should use inheritance here.
 	HostPort   string
 	Topic      string
-	//TODO: other fields to identify position of wanted
+	// TODO: other fields to identify position of wanted
 }
 
 /* used by producers to send publications to brokers*/
