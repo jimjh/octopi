@@ -26,16 +26,25 @@ var octopi = octopi || {};
     CONSUMER: 2,
 
     // Creates a new subscription request for the given topic.
-    //} TODO: replace with msgpack.
     subscription: function(topic) {
-      return JSON.stringify({MessageSrc: protocol.CONSUMER, Topic: topic});
+      return JSON.stringify({Source: protocol.CONSUMER, Topic: topic});
+    },
+
+    // Parses received message into a javascript object.
+    message: function(string) {
+      return JSON.parse(string);
+    },
+
+    // Calculates the checksum of the message's payload.
+    checksum: function(message) {
+      return crc32(message.Payload);
     }
 
   };
 
   // ## Consumer
   var Consumer = function(host) {
-    if (!host) throw new Error('Invalid host.');
+    if (!host) throw new Error('Invalid host. It should look like example.com:123.');
     this.endpoint = 'ws://' + host + '/' + protocol.PATH;
   };
 
@@ -59,7 +68,16 @@ var octopi = octopi || {};
   // them to the user-supplied callback.
   var handle = function(callback) {
     return function(event) {
-      callback(event.data);
+
+      var message = protocol.message(event.data);
+
+      var checksum = protocol.checksum(message);
+      if (checksum == message.Checksum) return callback(message.Payload);
+
+      throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
+
+      // TODO: sequence guarantees, and reconnect on checksum failure
+
     };
   };
 

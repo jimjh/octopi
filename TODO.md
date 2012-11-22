@@ -3,9 +3,9 @@
   image, videos, and other binary messages.
 
 ## Consumer
-- CRC32 verification
 - Unit Tests
 - Sequence guarantee and rewind
 - Add back-off and reconnect
 - Implement redirect
+- Failures and Error Handling
 - Allow WSS
