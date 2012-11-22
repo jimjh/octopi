@@ -125,11 +125,11 @@ func main() {
 	// TODO: single-partition mode
 
 	if broker.Role() == protocol.LEADER {
-		http.Handle("/producer", websocket.Handler(producerHandler))
+		http.Handle("/publish", websocket.Handler(producerHandler))
 		http.Handle("/broker", websocket.Handler(brokerHandler))
 	}
 
-	http.Handle("/consumer", websocket.Handler(consumerHandler))
+	http.Handle("/subscribe", websocket.Handler(consumerHandler))
 	log.Info("Listening on 12345 ...")
 
 	http.ListenAndServe(":12345", nil)
