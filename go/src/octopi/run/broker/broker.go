@@ -97,7 +97,7 @@ func brokerHandler(ws *websocket.Conn) {
 	block := make(chan interface{})
 	conn := &protocol.FollowWSConn{ws, block}
 	broker.CacheFollower(fli.HostPort, conn)
-	
+
 	/* blocks until disconnection detected */
 	<-block
 }
@@ -120,11 +120,11 @@ func main() {
 	// TODO: single-partition mode
 
 	if broker.Role() == protocol.LEADER {
-		http.Handle("/publish", websocket.Handler(producerHandler))
-		http.Handle("/broker", websocket.Handler(brokerHandler))
+		http.Handle("/"+protocol.PUBLISH, websocket.Handler(producerHandler))
+		http.Handle("/"+protocol.FOLLOW, websocket.Handler(brokerHandler))
 	}
 
-	http.Handle("/subscribe", websocket.Handler(consumerHandler))
+	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
 	log.Info("Listening on 12345 ...")
 
 	http.ListenAndServe(":12345", nil)

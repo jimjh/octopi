@@ -21,9 +21,16 @@ const (
 	FOLLOWER
 )
 
-type FollowWSConn struct{
+// Constants for URL endpoints
+const (
+	PUBLISH   = "publish"
+	SUBSCRIBE = "subscribe"
+	FOLLOW    = "follow"
+)
+
+type FollowWSConn struct {
 	FollowWS *websocket.Conn
-	Block chan interface{}
+	Block    chan interface{}
 }
 
 // Used by brokers to contact register.
