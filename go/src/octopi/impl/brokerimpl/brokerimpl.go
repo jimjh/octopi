@@ -8,13 +8,13 @@ import (
 )
 
 type Broker struct {
-	role          int                        // role of the broker
+	role          int                               // role of the broker
 	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
-	subscriptions map[string]*list.List      // map of topics to consumer connections
-	leadUrl       string                     // url of the leader, for followers
-	leadOrigin    string                     // origin of the leader, for followers
-	leadConn      *websocket.Conn            // connection to the leader, for followers
-	lock          sync.Mutex                 //  lock to manage broker access
+	subscriptions map[string]*list.List             // map of topics to consumer connections
+	leadUrl       string                            // url of the leader, for followers
+	leadOrigin    string                            // origin of the leader, for followers
+	leadConn      *websocket.Conn                   // connection to the leader, for followers
+	lock          sync.Mutex                        //  lock to manage broker access
 }
 
 func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
@@ -84,7 +84,7 @@ func (b *Broker) FollowBroadcast(msg protocol.Message) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.ProduceRequest) {
+func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.Message) {
 	err := websocket.JSON.Send(ws.FollowWS, msg)
 	if nil != err {
 		b.lock.Lock()
@@ -92,11 +92,11 @@ func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg pr
 		delete(b.brokerConns, hostport)
 		ws.FollowWS.Close()
 		/* allows websocket handler */
-		ws.Block<-nil
+		ws.Block <- nil
 	}
 }
 
-func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn){
+func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.brokerConns[hostport] = fconn

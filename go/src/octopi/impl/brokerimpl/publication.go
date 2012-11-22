@@ -32,9 +32,10 @@ func NewPublication(conn *websocket.Conn, topic string, broker *Broker) *Publica
 // TODO: allow broker to shut down publications?
 func (p *Publication) Serve() error {
 
+	var err error
 	for {
 		var message protocol.Message
-		err := websocket.JSON.Receive(p.conn, &message)
+		err = websocket.JSON.Receive(p.conn, &message)
 		if nil != err {
 			break
 		}
@@ -42,6 +43,6 @@ func (p *Publication) Serve() error {
 	}
 
 	close(p.receive)
-	return nil // XXX: what should be returned?
+	return err
 
 }

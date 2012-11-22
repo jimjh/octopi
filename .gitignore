@@ -2,6 +2,8 @@ go/bin/**
 go/pkg/**
 go/src/code.google.com/**
 
+doc/**
+
 .DS_Store
 
 *.swp
