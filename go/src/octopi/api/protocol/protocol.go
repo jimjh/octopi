@@ -4,6 +4,7 @@
 package protocol
 
 import (
+	"code.google.com/p/go.net/websocket"
 	"container/list"
 )
 
@@ -19,6 +20,11 @@ const (
 	LEADER = iota
 	FOLLOWER
 )
+
+type FollowWSConn struct{
+	FollowWS *websocket.Conn
+	Block chan interface{}
+}
 
 // Used by brokers to contact register.
 type BrokerRegInit struct {

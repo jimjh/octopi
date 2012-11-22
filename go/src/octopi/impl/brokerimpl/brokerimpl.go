@@ -7,14 +7,9 @@ import (
 	"sync"
 )
 
-type WebSocketConn struct {
-	HostPort string
-	Conn     *websocket.Conn
-}
-
 type Broker struct {
 	role          int                        // role of the broker
-	brokerConns   map[string]*websocket.Conn // map of assoc broker hostport to connections, for leaders
+	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
 	subscriptions map[string]*list.List      // map of topics to consumer connections
 	leadUrl       string                     // url of the leader, for followers
 	leadOrigin    string                     // origin of the leader, for followers
@@ -36,7 +31,7 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 
 	/* only initialize these variables if leader. otherwise leave as nil */
 	if rbi.Role == protocol.LEADER {
-		b.brokerConns = make(map[string]*websocket.Conn)
+		b.brokerConns = make(map[string]*protocol.FollowWSConn)
 
 		// TODO: make websocket connection to brokers. use rbi.Brokers
 	} else {
@@ -89,14 +84,22 @@ func (b *Broker) FollowBroadcast(msg protocol.Message) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.Message) {
-	err := websocket.JSON.Send(ws, msg)
+func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.ProduceRequest) {
+	err := websocket.JSON.Send(ws.FollowWS, msg)
 	if nil != err {
 		b.lock.Lock()
-		delete(b.brokerConns, hostport)
-		ws.Close()
 		defer b.lock.Unlock()
+		delete(b.brokerConns, hostport)
+		ws.FollowWS.Close()
+		/* allows websocket handler */
+		ws.Block<-nil
 	}
+}
+
+func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn){
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.brokerConns[hostport] = fconn
 }
 
 // RegisterConsumer creates a new subscription for the given consumer.
