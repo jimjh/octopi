@@ -3,3 +3,5 @@ go/pkg/**
 go/src/code.google.com/**
 
 .DS_Store
+
+*.swp
