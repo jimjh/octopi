@@ -38,7 +38,7 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*websocket.Conn)
 
-		//TODO: make websocket connection to brokers. use rbi.Brokers
+		// TODO: make websocket connection to brokers. use rbi.Brokers
 	} else {
 		leadConn, err := websocket.Dial(rbi.LeadUrl, "", rbi.LeadOrigin)
 		if nil != err {
@@ -53,32 +53,34 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 // RegisterProducer creates a new publication for the given producer connection
 // and blocks until the connection is lost.
 func (b *Broker) RegisterProducer(conn *websocket.Conn, req *protocol.PublishRequest) error {
-	publication := NewPublication(conn, b)
+	publication := NewPublication(conn, req.Topic, b)
 	return publication.Serve()
 }
 
 // Publish publishes the given message to all subscribers.
-func (b *Broker) Publish(req *protocol.ProduceRequest) {
+func (b *Broker) Publish(topic string, msg *protocol.Message) {
 
 	// FollowBroadcast
 	// TODO: this is not a good idea (should be async.)
+	// XXX: before writing to file, make sure to replace ID with offset and check
+	// for duplicates.
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	subscriptions, exists := b.subscriptions[req.Topic]
+	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers
 		return
 	}
 
 	for ele := subscriptions.Front(); ele != nil; ele = ele.Next() {
 		subscription := ele.Value.(*Subscription)
-		subscription.send <- req.Message
+		subscription.send <- msg
 	}
 
 }
 
-func (b *Broker) FollowBroadcast(msg protocol.ProduceRequest) {
+func (b *Broker) FollowBroadcast(msg protocol.Message) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	/* loop through all follwing broker connections and send message to update */
@@ -87,7 +89,7 @@ func (b *Broker) FollowBroadcast(msg protocol.ProduceRequest) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.ProduceRequest) {
+func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.Message) {
 	err := websocket.JSON.Send(ws, msg)
 	if nil != err {
 		b.lock.Lock()

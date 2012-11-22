@@ -1,3 +1,6 @@
+// The file defines the protocol that producers, consumers, brokers, and
+// registers will use to communicate with each other.
+// TODO: versioning.
 package protocol
 
 import (
@@ -19,8 +22,8 @@ const (
 
 // Used by brokers to contact register.
 type BrokerRegInit struct {
-	MessageSrc int
-	HostPort   string
+	Source   int
+	HostPort string
 }
 
 /* used by register to assign brokers */
@@ -33,20 +36,14 @@ type RegBrokerInit struct {
 
 /* used by producers to contact register */
 type ProdRegInit struct {
-	MessageSrc int
-	Topic      string
+	Source int
+	Topic  string
 }
 
 /* used by register to tell producer the lead broker */
 type RegProdInit struct {
 	LeadUrl    string
 	LeadOrigin string
-}
-
-/* used by consumers to contact register */
-type ConsRegInit struct {
-	MessageSrc int
-	Topic      string
 }
 
 /* used by register to tell consumer its assigned broker */
@@ -57,8 +54,8 @@ type RegConsInit struct {
 
 /* used by followers to contact leader */
 type FollowLeadInit struct {
-	MessageSrc int
-	HostPort   string
+	Source   int
+	HostPort string
 	// TODO: other fields to identify position of log
 }
 
@@ -68,22 +65,23 @@ type FollowLeadInit struct {
 // directly?
 // XXX: perhaps keeping a persistent connection is a good idea.
 type PublishRequest struct {
-	MessageSrc int
-	Topic      string
+	Source int
+	Topic  string
 	// TODO: do we need acknowledgments?
 }
 
 // SubscribeRequests are sent from consumers to brokers when they want messages
 // from a particular topic.
 type SubscribeRequest struct {
-	MessageSrc int // XXX: should use inheritance here.
-	Topic      string
+	Source int // XXX: should use inheritance here.
+	Topic  string
 	// TODO: other fields to identify position of wanted
 }
 
-// ProduceRequests are messages sent from producers to brokers; the enclosed
-// message is broadcast to all consumers subscribing to the topic.
-type ProduceRequest struct {
-	Topic   string
-	Message string
+// Messages sent from producers to brokers; the enclosed payload is broadcast to
+// all consumers subscribing to the topic.
+type Message struct {
+	ID       uint32 // seq num from producer, or offset from broker
+	Payload  []byte // message contents
+	Checksum uint32 // crc32 checksum
 }

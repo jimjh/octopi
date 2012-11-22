@@ -48,7 +48,7 @@ func producerHandler(ws *websocket.Conn) {
 	defer ws.Close()
 
 	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.MessageSrc != protocol.PRODUCER {
+	if nil != err || request.Source != protocol.PRODUCER {
 		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		return
 	}
@@ -67,7 +67,7 @@ func consumerHandler(ws *websocket.Conn) {
 	defer ws.Close()
 
 	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.MessageSrc != protocol.CONSUMER {
+	if nil != err || request.Source != protocol.CONSUMER {
 		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		return
 	}
@@ -88,7 +88,7 @@ func brokerHandler(ws *websocket.Conn) {
 	err := websocket.JSON.Receive(ws, &fli)
 
 	// close if message is corrupted or invalid
-	if nil != err || fli.MessageSrc != protocol.BROKER {
+	if nil != err || fli.Source != protocol.BROKER {
 		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 		ws.Close()
 		return
