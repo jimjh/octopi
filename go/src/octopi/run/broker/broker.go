@@ -44,27 +44,18 @@ func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokeri
 // producerHandler handles incoming produce requests.
 func producerHandler(ws *websocket.Conn) {
 
-	var pli protocol.ProdLeadInit
+	var request protocol.PublishRequest
+	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &pli)
-	if nil != err || pli.MessageSrc != protocol.PRODUCER {
+	err := websocket.JSON.Receive(ws, &request)
+	if nil != err || request.MessageSrc != protocol.PRODUCER {
 		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		ws.Close()
 		return
 	}
 
-	broker.RegProd(ws, pli)
-	// TODO: send catchup if not
-	for {
-		var pubMsg protocol.PubMsg
-		err := websocket.JSON.Receive(ws, &pubMsg)
-		if nil != err {
-			broker.RemoveProd(pli)
-			ws.Close()
-			return
-		}
-		broker.FollowBroadcast(pubMsg)
-		// TODO: send message to consumers
+	log.Info("Received publish request from %v.", ws.LocalAddr())
+	if err = broker.RegisterProducer(ws, &request); nil != err {
+		log.Error(err.Error())
 	}
 
 }
@@ -83,7 +74,7 @@ func consumerHandler(ws *websocket.Conn) {
 
 	// TODO: catchup
 	log.Info("Received subscribe request from %v.", ws.LocalAddr())
-	if err != broker.RegisterConsumer(ws, &request) { // this should block
+	if err = broker.RegisterConsumer(ws, &request); nil != err {
 		log.Error(err.Error())
 	}
 

@@ -15,7 +15,6 @@ type WebSocketConn struct {
 type Broker struct {
 	role          int                        // role of the broker
 	brokerConns   map[string]*websocket.Conn // map of assoc broker hostport to connections, for leaders
-	prodTopicsMap map[string]*list.List      // map of topics to producer connections
 	subscriptions map[string]*list.List      // map of topics to consumer connections
 	leadUrl       string                     // url of the leader, for followers
 	leadOrigin    string                     // origin of the leader, for followers
@@ -38,7 +37,6 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	/* only initialize these variables if leader. otherwise leave as nil */
 	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*websocket.Conn)
-		b.prodTopicsMap = make(map[string]*list.List)
 
 		//TODO: make websocket connection to brokers. use rbi.Brokers
 	} else {
@@ -52,26 +50,35 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	return b, nil
 }
 
-func (b *Broker) RegProd(ws *websocket.Conn, pli protocol.ProdLeadInit) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	wsc := WebSocketConn{pli.HostPort, ws}
-	b.prodTopicsMap[pli.Topic].PushBack(wsc)
+// RegisterProducer creates a new publication for the given producer connection
+// and blocks until the connection is lost.
+func (b *Broker) RegisterProducer(conn *websocket.Conn, req *protocol.PublishRequest) error {
+	publication := NewPublication(conn, b)
+	return publication.Serve()
 }
 
-func (b *Broker) RemoveProd(pli protocol.ProdLeadInit) {
+// Publish publishes the given message to all subscribers.
+func (b *Broker) Publish(req *protocol.ProduceRequest) {
+
+	// FollowBroadcast
+	// TODO: this is not a good idea (should be async.)
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	l := b.prodTopicsMap[pli.Topic]
-	for e := l.Front(); e != nil; e = e.Next() {
-		if e.Value.(WebSocketConn).HostPort == pli.HostPort {
-			l.Remove(e)
-			return
-		}
+
+	subscriptions, exists := b.subscriptions[req.Topic]
+	if !exists { // no subscribers
+		return
 	}
+
+	for ele := subscriptions.Front(); ele != nil; ele = ele.Next() {
+		subscription := ele.Value.(*Subscription)
+		subscription.send <- req.Message
+	}
+
 }
 
-func (b *Broker) FollowBroadcast(msg protocol.PubMsg) {
+func (b *Broker) FollowBroadcast(msg protocol.ProduceRequest) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	/* loop through all follwing broker connections and send message to update */
@@ -80,7 +87,7 @@ func (b *Broker) FollowBroadcast(msg protocol.PubMsg) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.PubMsg) {
+func (b *Broker) sendToFollow(hostport string, ws *websocket.Conn, msg protocol.ProduceRequest) {
 	err := websocket.JSON.Send(ws, msg)
 	if nil != err {
 		b.lock.Lock()

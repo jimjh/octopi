@@ -62,10 +62,15 @@ type FollowLeadInit struct {
 	// TODO: other fields to identify position of log
 }
 
-type ProdLeadInit struct {
+// PublishRequests are sent from producers to brokers when they want to start
+// sending messages under a particular topic.
+// XXX: why do we need this? why can't producers send produce requests
+// directly?
+// XXX: perhaps keeping a persistent connection is a good idea.
+type PublishRequest struct {
 	MessageSrc int
-	HostPort   string
 	Topic      string
+	// TODO: do we need acknowledgments?
 }
 
 // SubscribeRequests are sent from consumers to brokers when they want messages
@@ -76,8 +81,9 @@ type SubscribeRequest struct {
 	// TODO: other fields to identify position of wanted
 }
 
-/* used by producers to send publications to brokers*/
-type PubMsg struct {
+// ProduceRequests are messages sent from producers to brokers; the enclosed
+// message is broadcast to all consumers subscribing to the topic.
+type ProduceRequest struct {
 	Topic   string
 	Message string
 }
