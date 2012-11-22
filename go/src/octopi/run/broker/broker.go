@@ -94,8 +94,12 @@ func brokerHandler(ws *websocket.Conn) {
 		return
 	}
 
-	// TODO: do something on success
-
+	block := make(chan interface{})
+	conn := &protocol.FollowWSConn{ws, block}
+	broker.CacheFollower(fli.HostPort, conn)
+	
+	/* blocks until disconnection detected */
+	<-block
 }
 
 // main starts a broker instance.
