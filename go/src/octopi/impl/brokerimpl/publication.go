@@ -8,25 +8,22 @@ import (
 // Publications are used to store producer connections; each publication has a
 // go channel that relays messages from the producer.
 //
-// XXX: currently, we do not check if the topics are the same as the one it
-// registered with.
-//
 // XXX: for now, a publication is defined as a persistent connection for one
 // more more produce requests. Should probably rename this.
-//
-// XXX: should producers be allowed to reuse the connection?
 type Publication struct {
 	conn    *websocket.Conn  // producer websocket connection
 	broker  *Broker          // message broker
 	receive chan interface{} // go channel for relaying messages
+	topic   string           // message topic
 }
 
 // NewPublication creates a new publication.
-func NewPublication(conn *websocket.Conn, broker *Broker) *Publication {
+func NewPublication(conn *websocket.Conn, topic string, broker *Broker) *Publication {
 	return &Publication{
 		conn:    conn,
 		broker:  broker,
 		receive: make(chan interface{}, 1), // TODO: make this more robust
+		topic:   topic,
 	}
 }
 
@@ -36,12 +33,12 @@ func NewPublication(conn *websocket.Conn, broker *Broker) *Publication {
 func (p *Publication) Serve() error {
 
 	for {
-		var request protocol.ProduceRequest
-		err := websocket.JSON.Receive(p.conn, &request)
+		var message protocol.Message
+		err := websocket.JSON.Receive(p.conn, &message)
 		if nil != err {
 			break
 		}
-		p.broker.Publish(&request)
+		p.broker.Publish(p.topic, &message)
 	}
 
 	close(p.receive)
