@@ -125,9 +125,7 @@ func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeR
 	b.lock.Unlock()
 
 	// serve (blocking call)
-	subscription.Serve()
-
-	return nil
+	return subscription.Serve()
 
 }
 
