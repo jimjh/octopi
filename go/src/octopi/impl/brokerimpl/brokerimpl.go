@@ -4,6 +4,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"container/list"
 	"octopi/api/protocol"
+	"octopi/util/brokerlog"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ type Broker struct {
 	role          int                        // role of the broker
 	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
 	subscriptions map[string]*list.List      // map of topics to consumer connections
+	logs	      map[string]*brokerlog.BLog // map of topics to logs
 	leadUrl       string                     // url of the leader, for followers
 	leadOrigin    string                     // origin of the leader, for followers
 	leadConn      *websocket.Conn            // connection to the leader, for followers
@@ -32,8 +34,6 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	/* only initialize these variables if leader. otherwise leave as nil */
 	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*protocol.FollowWSConn)
-
-		// TODO: make websocket connection to brokers. use rbi.Brokers
 	} else {
 		leadConn, err := websocket.Dial(rbi.LeadUrl, "", rbi.LeadOrigin)
 		if nil != err {
@@ -54,14 +54,29 @@ func (b *Broker) RegisterProducer(conn *websocket.Conn, req *protocol.PublishReq
 
 // Publish publishes the given message to all subscribers.
 func (b *Broker) Publish(topic string, msg *protocol.Message) {
+	
+	b.lock.Lock()
+	defer b.lock.Unlock()
 
-	// FollowBroadcast
+	bLog, exists := b.logs[topic]
+	if !exists{
+		// TODO: determine path of logs
+		tmpLog, err := brokerlog.OpenLog(topic)
+		if nil != err{
+			//TODO: cannot open log!
+		} else{
+			b.logs[topic] = tmpLog
+			bLog = tmpLog
+		}
+	}
+
+	b.FollowBroadcast(msg)
+
+	// TODO: message duplication check and follower synchronization
+	// XXX: how to check for duplication in logs? need to loop through?
 	// TODO: this is not a good idea (should be async.)
 	// XXX: before writing to file, make sure to replace ID with offset and check
 	// for duplicates.
-
-	b.lock.Lock()
-	defer b.lock.Unlock()
 
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers
@@ -75,16 +90,14 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) {
 
 }
 
-func (b *Broker) FollowBroadcast(msg protocol.Message) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	/* loop through all follwing broker connections and send message to update */
+func (b *Broker) FollowBroadcast(msg *protocol.Message) {
+	/* loop through all following broker connections and send message to update */
 	for hostport, conn := range b.brokerConns {
 		go b.sendToFollow(hostport, conn, msg)
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.ProduceRequest) {
+func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg *protocol.Message) {
 	err := websocket.JSON.Send(ws.FollowWS, msg)
 	if nil != err {
 		b.lock.Lock()
@@ -130,12 +143,6 @@ func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeR
 	subscription.Serve()
 
 	return nil
-
-}
-
-func (b *Broker) RegBroker(ws *websocket.Conn, fli protocol.FollowLeadInit) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
 
 }
 
