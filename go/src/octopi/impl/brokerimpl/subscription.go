@@ -2,6 +2,7 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"io"
 )
 
 // Subscriptions are used to store consumer connections; each subscription has
@@ -20,10 +21,19 @@ func NewSubscription(conn *websocket.Conn) *Subscription {
 }
 
 // Serve blocks until either the websocket connection or channel is closed.
-func (s *Subscription) Serve() {
+func (s *Subscription) Serve() error {
+
+	var err error
 	for message := range s.send {
-		if nil != websocket.JSON.Send(s.conn, message) {
+		if err = websocket.JSON.Send(s.conn, message); nil != err {
 			break
 		}
 	}
+
+	if err == io.EOF {
+		return nil
+	}
+
+	return err
+
 }

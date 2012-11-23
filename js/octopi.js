@@ -6,7 +6,7 @@
 //        console.log(msg);
 //      });
 //
-/*global WebSocket*/
+/*global WebSocket crc32 base64*/
 
 // ## Global octopi object
 // All octopi functions will be enclosed in this namespace.
@@ -32,7 +32,9 @@ var octopi = octopi || {};
 
     // Parses received message into a javascript object.
     message: function(string) {
-      return JSON.parse(string);
+      var obj = JSON.parse(string);
+      obj.Payload = base64.decode(obj.Payload);
+      return obj;
     },
 
     // Calculates the checksum of the message's payload.
@@ -74,6 +76,7 @@ var octopi = octopi || {};
       var checksum = protocol.checksum(message);
       if (checksum == message.Checksum) return callback(message.Payload);
 
+      console.log(message);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
 
       // TODO: sequence guarantees, and reconnect on checksum failure

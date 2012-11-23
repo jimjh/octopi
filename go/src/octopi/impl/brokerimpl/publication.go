@@ -2,6 +2,7 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"io"
 	"octopi/api/protocol"
 )
 
@@ -29,7 +30,6 @@ func NewPublication(conn *websocket.Conn, topic string, broker *Broker) *Publica
 
 // Serve blocks until the websocket connection is broken. Closes the `receive`
 // channel when it returns.
-// TODO: allow broker to shut down publications?
 func (p *Publication) Serve() error {
 
 	var err error
@@ -43,6 +43,11 @@ func (p *Publication) Serve() error {
 	}
 
 	close(p.receive)
+
+	if io.EOF == err { // graceful shutdown
+		return nil
+	}
+
 	return err
 
 }
