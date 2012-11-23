@@ -9,7 +9,7 @@ import (
 )
 
 type Broker struct {
-	role          int                        // role of the broker
+	role          int                               // role of the broker
 	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
 	subscriptions map[string]*list.List      // map of topics to consumer connections
 	logs	      map[string]*brokerlog.BLog // map of topics to logs
@@ -105,11 +105,11 @@ func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg *p
 		delete(b.brokerConns, hostport)
 		ws.FollowWS.Close()
 		/* allows websocket handler */
-		ws.Block<-nil
+		ws.Block <- nil
 	}
 }
 
-func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn){
+func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.brokerConns[hostport] = fconn
