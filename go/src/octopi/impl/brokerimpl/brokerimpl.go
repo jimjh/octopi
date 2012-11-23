@@ -29,8 +29,6 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 		leadOrigin:    rbi.LeadOrigin,
 	}
 
-	// XXX: topics are freely created - this is pub/sub convention.
-
 	/* only initialize these variables if leader. otherwise leave as nil */
 	if rbi.Role == protocol.LEADER {
 		b.brokerConns = make(map[string]*protocol.FollowWSConn)
@@ -140,9 +138,7 @@ func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeR
 	b.lock.Unlock()
 
 	// serve (blocking call)
-	subscription.Serve()
-
-	return nil
+	return subscription.Serve()
 
 }
 
