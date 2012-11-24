@@ -12,13 +12,7 @@
 - Allow WSS
 
 ## Producer
-- Simple publishing
-
-    ```go
-      p := producer.New
-      p.publish(message)
-    ```
-
+- CRC32 checksum verification in broker.
 - Unit Tests
 - Send and wait for ack.
 - Sequence Numbers.
