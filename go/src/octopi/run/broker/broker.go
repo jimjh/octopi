@@ -2,6 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"io"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
@@ -51,7 +52,12 @@ func producerHandler(ws *websocket.Conn) {
 
 		var request protocol.ProduceRequest
 
-		if err := websocket.JSON.Receive(ws, &request); nil != err {
+		err := websocket.JSON.Receive(ws, &request)
+		if err == io.EOF { // graceful shutdown
+			break
+		}
+
+		if nil != err {
 			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
 			continue
 		}
@@ -63,6 +69,8 @@ func producerHandler(ws *websocket.Conn) {
 		}
 
 	}
+
+	log.Info("Closed producer connection from %v.", ws.LocalAddr())
 
 }
 
@@ -78,11 +86,12 @@ func consumerHandler(ws *websocket.Conn) {
 		return
 	}
 
-	// TODO: catchup
+	// TODO: catchup/rewind
 	log.Info("Received subscribe request from %v.", ws.LocalAddr())
 	if err = broker.RegisterConsumer(ws, &request); nil != err {
 		log.Error(err.Error())
 	}
+	log.Info("Closed subscription from %v.", ws.LocalAddr())
 
 }
 
