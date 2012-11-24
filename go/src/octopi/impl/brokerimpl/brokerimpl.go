@@ -112,13 +112,10 @@ func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
 	b.brokerConns[hostport] = fconn
 }
 
-// RegisterConsumer creates a new subscription for the given consumer.
-//
+// Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
 // receive any messages until a producer publishes a message under that topic.
-//
-// This method blocks until the websocket connection is broken.
-func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeRequest) error {
+func (b *Broker) Subscribe(conn *websocket.Conn, topic string) error {
 
 	// create new subscription
 	subscription := NewSubscription(conn)
@@ -126,18 +123,19 @@ func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeR
 
 	b.lock.Lock()
 
-	// save subscription (XXX: what if the same consumer subscribes twice?)
-	subscriptions, exists := b.subscriptions[req.Topic]
+	// save subscription
+	subscriptions, exists := b.subscriptions[topic]
 	if !exists {
-		b.subscriptions[req.Topic] = list.New()
-		subscriptions = b.subscriptions[req.Topic]
+		b.subscriptions[topic] = list.New()
+		subscriptions = b.subscriptions[topic]
 	}
 	subscriptions.PushBack(subscription)
 
 	b.lock.Unlock()
 
 	// serve (blocking call)
-	return subscription.Serve()
+	go subscription.Serve()
+	return nil
 
 }
 

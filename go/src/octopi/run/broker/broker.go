@@ -2,6 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"io"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
@@ -51,12 +52,17 @@ func producerHandler(ws *websocket.Conn) {
 
 		var request protocol.ProduceRequest
 
-		if err := websocket.JSON.Receive(ws, &request); nil != err {
-			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+		err := websocket.JSON.Receive(ws, &request)
+		if err == io.EOF { // graceful shutdown
+			break
+		}
+
+		if nil != err {
+			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 			continue
 		}
 
-		log.Info("Received produce request from %v.", ws.LocalAddr())
+		log.Info("Received produce request from %v.", ws.RemoteAddr())
 		if err := broker.Publish(request.Topic, &request.Message); nil != err {
 			log.Error(err.Error())
 			continue
@@ -64,25 +70,39 @@ func producerHandler(ws *websocket.Conn) {
 
 	}
 
+	log.Info("Closed producer connection from %v.", ws.RemoteAddr())
+
 }
 
 // consumerHandler handles incoming consume requests.
 func consumerHandler(ws *websocket.Conn) {
 
-	var request protocol.SubscribeRequest
 	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.Source != protocol.CONSUMER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		return
+	for {
+
+		var request protocol.SubscribeRequest
+
+		err := websocket.JSON.Receive(ws, &request)
+		if err == io.EOF { // graceful shutdown
+			// TODO: need to delete (from broker) closed subscriptions
+			break
+		}
+
+		if nil != err || request.Source != protocol.CONSUMER {
+			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+			continue
+		}
+
+		// TODO: catchup/rewind
+		log.Info("Received subscribe request from %v.", ws.RemoteAddr())
+		if err = broker.Subscribe(ws, request.Topic); nil != err {
+			log.Error(err.Error())
+		}
+
 	}
 
-	// TODO: catchup
-	log.Info("Received subscribe request from %v.", ws.LocalAddr())
-	if err = broker.RegisterConsumer(ws, &request); nil != err {
-		log.Error(err.Error())
-	}
+	log.Info("Closed consumer connection from %v.", ws.RemoteAddr())
 
 }
 
@@ -95,7 +115,7 @@ func brokerHandler(ws *websocket.Conn) {
 
 	// close if message is corrupted or invalid
 	if nil != err || fli.Source != protocol.BROKER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
