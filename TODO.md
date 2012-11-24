@@ -14,11 +14,11 @@
 ## Producer
 + Publish messages
 + Sequence Numbers
-- Unit Tests
-- Send and wait for ack
-- Retry and reconnection
++ Failures and Error Handling
++ Retry and reconnection
 - Implement redirect
-- Failures and Error Handling
+- Send and wait for ack
+- Unit Tests
 
 ## Broker
 - CRC32 checksum verification in broker
