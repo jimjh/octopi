@@ -4,16 +4,17 @@
 
 ## Consumer
 + Implement close
-- Sequence guarantee and rewind
+- Failures and error handling
 - Add back-off and reconnect
+- Sequence guarantee and rewind
+- Subscribe and wait for ACK
 - Implement redirect
-- Failures and error Handling
 - Unit Tests
 
 ## Producer
 + Publish messages
 + Sequence Numbers
-+ Failures and error Handling
++ Failures and error handling
 + Retry and reconnection
 - Implement redirect
 - Send and wait for ack

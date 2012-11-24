@@ -122,6 +122,7 @@ func (b *Broker) Subscribe(conn *websocket.Conn, topic string) error {
 	var subscriptions *list.List
 
 	b.lock.Lock()
+	defer b.lock.Unlock()
 
 	// save subscription
 	subscriptions, exists := b.subscriptions[topic]
@@ -131,9 +132,7 @@ func (b *Broker) Subscribe(conn *websocket.Conn, topic string) error {
 	}
 	subscriptions.PushBack(subscription)
 
-	b.lock.Unlock()
-
-	// serve (blocking call)
+	// serve
 	go subscription.Serve()
 	return nil
 
