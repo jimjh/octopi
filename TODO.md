@@ -12,16 +12,13 @@
 - Allow WSS
 
 ## Producer
-- Simple publishing
-
-    ```go
-      p := producer.New
-      p.publish(message)
-    ```
-
++ Publish messages
++ Sequence Numbers
 - Unit Tests
-- Send and wait for ack.
-- Sequence Numbers.
+- Send and wait for ack
 - Retry and reconnection
 - Implement redirect
 - Failures and Error Handling
+
+## Broker
+- CRC32 checksum verification in broker
