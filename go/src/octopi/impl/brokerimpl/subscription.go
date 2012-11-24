@@ -2,6 +2,7 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"octopi/util/log"
 )
 
 // Subscriptions are used to store consumer connections; each subscription has
@@ -31,6 +32,7 @@ func (s *Subscription) Serve() error {
 	}
 
 	// TODO: need to delete (from broker) closed subscriptions
+	log.Debug("Stopped serving subscription %p.", s)
 	return err
 
 }

@@ -22,4 +22,4 @@
 
 ## Broker
 - CRC32 checksum verification in broker
-- Delete closed subscriptions
++ Delete closed subscriptions

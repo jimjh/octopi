@@ -2,7 +2,6 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"container/list"
 	"octopi/api/protocol"
 	"octopi/util/brokerlog"
 	"sync"
@@ -11,7 +10,7 @@ import (
 type Broker struct {
 	role          int                               // role of the broker
 	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
-	subscriptions map[string]*list.List             // map of topics to consumer connections
+	subscriptions map[string]SubscriptionSet        // map of topics to consumer connections
 	logs          map[string]*brokerlog.BLog        // map of topics to logs
 	leadUrl       string                            // url of the leader, for followers
 	leadOrigin    string                            // origin of the leader, for followers
@@ -19,12 +18,14 @@ type Broker struct {
 	lock          sync.Mutex                        //  lock to manage broker access
 }
 
+type SubscriptionSet map[*Subscription]bool
+
 func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
 
 	/* create the broker */
 	b := &Broker{
 		role:          rbi.Role,
-		subscriptions: make(map[string]*list.List),
+		subscriptions: make(map[string]SubscriptionSet),
 		leadUrl:       rbi.LeadUrl,
 		leadOrigin:    rbi.LeadOrigin,
 	}
@@ -78,8 +79,7 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 		return nil
 	}
 
-	for ele := subscriptions.Front(); ele != nil; ele = ele.Next() {
-		subscription := ele.Value.(*Subscription)
+	for subscription := range subscriptions {
 		subscription.send <- msg
 	}
 
@@ -115,11 +115,11 @@ func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
 // Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
 // receive any messages until a producer publishes a message under that topic.
-func (b *Broker) Subscribe(conn *websocket.Conn, topic string) error {
+func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
 
 	// create new subscription
 	subscription := NewSubscription(conn)
-	var subscriptions *list.List
+	var subscriptions SubscriptionSet
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
@@ -127,14 +127,30 @@ func (b *Broker) Subscribe(conn *websocket.Conn, topic string) error {
 	// save subscription
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists {
-		b.subscriptions[topic] = list.New()
-		subscriptions = b.subscriptions[topic]
+		subscriptions = make(map[*Subscription]bool)
+		b.subscriptions[topic] = subscriptions
 	}
-	subscriptions.PushBack(subscription)
+	subscriptions[subscription] = true
 
 	// serve
 	go subscription.Serve()
-	return nil
+	return subscription
+
+}
+
+// Unsubscribe removes the given subscription from the broker.
+func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	subscriptions, exists := b.subscriptions[topic]
+	if !exists {
+		return
+	}
+
+	close(subscription.send)
+	delete(subscriptions, subscription)
 
 }
 
