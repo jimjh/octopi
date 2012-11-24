@@ -58,11 +58,11 @@ func producerHandler(ws *websocket.Conn) {
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 			continue
 		}
 
-		log.Info("Received produce request from %v.", ws.LocalAddr())
+		log.Info("Received produce request from %v.", ws.RemoteAddr())
 		if err := broker.Publish(request.Topic, &request.Message); nil != err {
 			log.Error(err.Error())
 			continue
@@ -70,7 +70,7 @@ func producerHandler(ws *websocket.Conn) {
 
 	}
 
-	log.Info("Closed producer connection from %v.", ws.LocalAddr())
+	log.Info("Closed producer connection from %v.", ws.RemoteAddr())
 
 }
 
@@ -90,19 +90,19 @@ func consumerHandler(ws *websocket.Conn) {
 		}
 
 		if nil != err || request.Source != protocol.CONSUMER {
-			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 			continue
 		}
 
 		// TODO: catchup/rewind
-		log.Info("Received subscribe request from %v.", ws.LocalAddr())
+		log.Info("Received subscribe request from %v.", ws.RemoteAddr())
 		if err = broker.Subscribe(ws, request.Topic); nil != err {
 			log.Error(err.Error())
 		}
 
 	}
 
-	log.Info("Closed consumer connection from %v.", ws.LocalAddr())
+	log.Info("Closed consumer connection from %v.", ws.RemoteAddr())
 
 }
 
@@ -115,7 +115,7 @@ func brokerHandler(ws *websocket.Conn) {
 
 	// close if message is corrupted or invalid
 	if nil != err || fli.Source != protocol.BROKER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+		log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
 		ws.Close()
 		return
 	}
