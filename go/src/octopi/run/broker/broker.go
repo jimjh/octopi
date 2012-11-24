@@ -41,21 +41,27 @@ func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokeri
 	return b
 }
 
-// producerHandler handles incoming produce requests.
+// producerHandler handles incoming produce requests. Producers may send
+// multiple produce requests on the same persistent connection.
 func producerHandler(ws *websocket.Conn) {
 
-	var request protocol.PublishRequest
 	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.Source != protocol.PRODUCER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		return
-	}
+	for {
 
-	log.Info("Received publish request from %v.", ws.LocalAddr())
-	if err = broker.RegisterProducer(ws, &request); nil != err {
-		log.Error(err.Error())
+		var request protocol.ProduceRequest
+
+		if err := websocket.JSON.Receive(ws, &request); nil != err {
+			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+			continue
+		}
+
+		log.Info("Received produce request from %v.", ws.LocalAddr())
+		if err := broker.Publish(request.Topic, &request.Message); nil != err {
+			log.Error(err.Error())
+			continue
+		}
+
 	}
 
 }

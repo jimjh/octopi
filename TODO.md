@@ -12,10 +12,13 @@
 - Allow WSS
 
 ## Producer
-- CRC32 checksum verification in broker.
-- Unit Tests
-- Send and wait for ack.
-- Sequence Numbers.
-- Retry and reconnection
++ Publish messages
++ Sequence Numbers
++ Failures and Error Handling
++ Retry and reconnection
 - Implement redirect
-- Failures and Error Handling
+- Send and wait for ack
+- Unit Tests
+
+## Broker
+- CRC32 checksum verification in broker

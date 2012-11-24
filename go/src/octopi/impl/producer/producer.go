@@ -3,59 +3,108 @@ package producer
 import (
 	"code.google.com/p/go.net/websocket"
 	"hash/crc32"
+	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/log"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Producer struct {
-	conn *websocket.Conn // persistent websocket connection
+	conn   *websocket.Conn // persistent websocket connection
+	seqnum uint32          // sequence number of messages
+	lock   sync.Mutex      // lock for producer state
 }
 
+// Default origin to use.
 var ORIGIN = "http://localhost"
+
+// Max number of retries.
+var MAX_RETRIES = 5
+
+// Max number of milliseconds between retries.
+var MAX_RETRY_INTERVAL = 2000
 
 // New creates a new producer that sends messages to broker that lives
 // at the given hostport.
-func New(hostport string, topic string) (*Producer, error) {
+func New(hostport string) (*Producer, error) {
 
-	conn, err := websocket.Dial("ws://"+hostport+"/"+protocol.PUBLISH, "", ORIGIN)
+	p := new(Producer)
+	addr := "ws://" + hostport + "/" + protocol.PUBLISH
+
+	if err := p.connect(addr); nil != err {
+		return nil, err
+	}
+
+	return p, nil
+
+}
+
+// Establishes a websocket connection to the broker.
+func (p *Producer) connect(addr string) error {
+
+	conn, err := websocket.Dial(addr, "", ORIGIN)
+
 	if nil != err {
 		log.Error(err.Error())
-		return nil, err
+	} else {
+		p.conn = conn
+		log.Info("Established new connection to broker at %v.", conn.RemoteAddr())
 	}
 
-	request := &protocol.PublishRequest{protocol.PRODUCER, topic}
-	if err := websocket.JSON.Send(conn, request); nil != err {
-		log.Error(err.Error())
-		conn.Close()
-		return nil, err
-	}
-	log.Info("Established connection to broker at %v.", conn.RemoteAddr())
+	return err
 
-	return &Producer{conn}, nil
+}
+
+// Locks down producer, closes current connection, and reconnects to broker.
+func (p *Producer) reconnect() error {
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.conn.Close()
+
+	// back off and reconnect
+	backoff := time.Duration(rand.Intn(MAX_RETRY_INTERVAL))
+	time.Sleep(backoff * time.Millisecond)
+	return p.connect(p.conn.RemoteAddr().String())
 
 }
 
 // Send sends the message to the broker, and blocks until an acknowledgement is
 // received.
-func (p *Producer) Send(payload []byte) error {
+func (p *Producer) Send(topic string, payload []byte) error {
 
-	message := &protocol.Message{0, payload, crc32.ChecksumIEEE(payload)}
+	seqnum := atomic.AddUint32(&p.seqnum, 1)
+	message := protocol.Message{seqnum, payload, crc32.ChecksumIEEE(payload)}
+	request := &protocol.ProduceRequest{topic, message}
 
-	err := websocket.JSON.Send(p.conn, message)
-	if nil != err {
+	log.Debug("Sending %v", request)
+
+	var err error
+	for tries := 1; tries <= MAX_RETRIES; tries++ {
+
+		err = websocket.JSON.Send(p.conn, request)
+		if nil == err {
+			// TODO: wait for ack
+			// TODO: timeout and retry
+			break // success
+		}
+
 		log.Error(err.Error())
-		return err
+		p.reconnect()
+
 	}
 
-	// TODO: retry? return error? reconnect?
-
-	// TODO: wait for ack
-	return nil
+	return err
 
 }
 
 // Close closes the producer's websocket connection. Must not be invoked while
 // there are still Sends pending.
 func (p *Producer) Close() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.conn.Close()
 }

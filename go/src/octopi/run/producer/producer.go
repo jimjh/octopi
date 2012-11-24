@@ -23,22 +23,22 @@ func main() {
 	var topic = flag.String("topic", "hello", "topic to send message under")
 	flag.Parse()
 
-	p, err := producer.New(*broker, *topic)
+	p, err := producer.New(*broker)
 	if nil != err {
 		log.Fatal(err.Error())
 	}
 
-	pipe(p)
+	pipe(p, *topic)
 	p.Close()
 
 }
 
-func pipe(p *producer.Producer) {
+func pipe(p *producer.Producer, topic string) {
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		line, _ := reader.ReadBytes('\n')
-		if err := p.Send(line); nil != err {
+		if err := p.Send(topic, line); nil != err {
 			log.Error(err.Error())
 			break
 		}
