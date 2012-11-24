@@ -195,6 +195,7 @@ func (blog *BLog) Commit() error {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	err := blog.logFile.Sync()
+	// XXX: not sure abt this.
 	if nil != err {
 		return err
 	}
