@@ -21,9 +21,11 @@ type Producer struct {
 var ORIGIN = "http://localhost"
 
 // Max number of retries.
+// XXX: move this to a configuration file
 var MAX_RETRIES = 5
 
 // Max number of milliseconds between retries.
+// XXX: move this to a configuration file
 var MAX_RETRY_INTERVAL = 2000
 
 // New creates a new producer that sends messages to broker that lives
