@@ -77,21 +77,32 @@ func producerHandler(ws *websocket.Conn) {
 // consumerHandler handles incoming consume requests.
 func consumerHandler(ws *websocket.Conn) {
 
-	var request protocol.SubscribeRequest
 	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.Source != protocol.CONSUMER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		return
+	for {
+
+		var request protocol.SubscribeRequest
+
+		err := websocket.JSON.Receive(ws, &request)
+		if err == io.EOF { // graceful shutdown
+			// TODO: need to delete (from broker) closed subscriptions
+			break
+		}
+
+		if nil != err || request.Source != protocol.CONSUMER {
+			log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+			continue
+		}
+
+		// TODO: catchup/rewind
+		log.Info("Received subscribe request from %v.", ws.LocalAddr())
+		if err = broker.Subscribe(ws, request.Topic); nil != err {
+			log.Error(err.Error())
+		}
+
 	}
 
-	// TODO: catchup/rewind
-	log.Info("Received subscribe request from %v.", ws.LocalAddr())
-	if err = broker.RegisterConsumer(ws, &request); nil != err {
-		log.Error(err.Error())
-	}
-	log.Info("Closed subscription from %v.", ws.LocalAddr())
+	log.Info("Closed consumer connection from %v.", ws.LocalAddr())
 
 }
 

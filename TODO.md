@@ -3,11 +3,11 @@
   image, videos, and other binary messages.
 
 ## Consumer
++ Implement close
 - Sequence guarantee and rewind
 - Add back-off and reconnect
 - Implement redirect
 - Failures and error Handling
-- Implement close
 - Unit Tests
 
 ## Producer

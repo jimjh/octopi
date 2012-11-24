@@ -48,6 +48,7 @@ var octopi = octopi || {};
   var Consumer = function(host) {
     if (!host) throw new Error('Invalid host. It should look like example.com:123.');
     this.endpoint = 'ws://' + host + '/' + protocol.PATH;
+    this.subscriptions = {};
   };
 
   // Subscribes to the given topic, invoking the callback with the received
@@ -55,15 +56,39 @@ var octopi = octopi || {};
   //
   //      c.subscribe('topic', function() { /* ... */ });
   //
+  // If a subscription already exists for the given topic, it will be ignored.
+  //} TODO: how to let application know if subscription failed?
   Consumer.prototype.subscribe = function(topic, callback) {
 
     if (typeof topic === 'undefined') throw new Error('Invalid topic.');
     if (!callback) throw new Error('Invalid callback.');
+    if (topic in this.subscriptions) return; // already subscribed
 
-    var ws = new WebSocket(this.endpoint);
-    ws.onmessage = handle(callback);
-    ws.onopen = function() { ws.send(protocol.subscription(topic)); };
+    var conn = new WebSocket(this.endpoint);
+    this.subscriptions[topic] = conn;
 
+    conn.onmessage = handle(callback);
+    conn.onopen = function() {
+      // TODO: wait for ACK
+      conn.send(protocol.subscription(topic));
+      // TODO: close connection on failure
+      // TODO: detect broker failure
+    };
+
+    conn.onclose = function() {
+      console.log('closed!');
+    };
+
+  };
+
+  // Unsubscribes from the given topic by closing the websocket connection.
+  // This is a no-op is a subscription does not already exist for the topic.
+  Consumer.prototype.unsubscribe = function(topic) {
+    if (topic in this.subscriptions) {
+      var conn = this.subscriptions[topic];
+      delete this.subscriptions[topic];
+      conn.close();
+    }
   };
 
   // Returns a function that handles incoming websocket messages and passes
@@ -79,7 +104,7 @@ var octopi = octopi || {};
       console.log(message);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
 
-      // TODO: sequence guarantees, and reconnect on checksum failure
+      // TODO: sequence guarantees, and rewind on checksum failure
 
     };
   };
