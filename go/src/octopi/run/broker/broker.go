@@ -78,6 +78,7 @@ func producerHandler(ws *websocket.Conn) {
 func consumerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
+	subscriptions := make(map[*brokerimpl.Subscription]string)
 
 	for {
 
@@ -85,7 +86,6 @@ func consumerHandler(ws *websocket.Conn) {
 
 		err := websocket.JSON.Receive(ws, &request)
 		if err == io.EOF { // graceful shutdown
-			// TODO: need to delete (from broker) closed subscriptions
 			break
 		}
 
@@ -96,13 +96,17 @@ func consumerHandler(ws *websocket.Conn) {
 
 		// TODO: catchup/rewind
 		log.Info("Received subscribe request from %v.", ws.RemoteAddr())
-		if err = broker.Subscribe(ws, request.Topic); nil != err {
-			log.Error(err.Error())
-		}
+		subscription := broker.Subscribe(ws, request.Topic)
+		subscriptions[subscription] = request.Topic
 
 	}
 
 	log.Info("Closed consumer connection from %v.", ws.RemoteAddr())
+
+	// delete all subscriptions
+	for subscription, topic := range subscriptions {
+		broker.Unsubscribe(topic, subscription)
+	}
 
 }
 
@@ -132,7 +136,7 @@ func brokerHandler(ws *websocket.Conn) {
 func main() {
 
 	log.SetPrefix("broker: ")
-	log.SetVerbose(log.INFO)
+	log.SetVerbose(log.DEBUG)
 
 	if false {
 		// TODO: add command line arguments for register
