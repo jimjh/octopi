@@ -164,6 +164,9 @@ func main() {
 	checkError(err)
 
 	broker = brokerimpl.New(port, config.Get("register"))
+
+	go broker.HandleMessages()
+
 	listenHttp(port)
 
 }
