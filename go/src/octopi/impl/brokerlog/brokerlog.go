@@ -38,20 +38,17 @@ func OpenLog(path string) (*BLog, error) {
 
 	blog := &BLog{logFile: file}
 
-	_, err = blog.logFile.Seek(0, os.SEEK_END)
+	blog.hwMark, err = blog.logFile.Seek(0, os.SEEK_END)
 
 	return blog, err
 
 }
 
-// TODO: return the messageID of the next message
 // Read reads from offset ID, useful for recovery
 func (blog *BLog) Read(id int64) ([]byte, int64, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
-	// TODO: change to uint32
-	// XXX: should be fixed at uint32
 	msgLenBytes := make([]byte, 4)                         //4 bytes for message length
 	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id) //offset for ID
 	if bytesRead != 4 || nil != err {
@@ -77,7 +74,7 @@ func (blog *BLog) Read(id int64) ([]byte, int64, error) {
 
 }
 
-/* reads an actual entry from the broker log */
+// reads an actual entry from the broker log 
 func (blog *BLog) ReadEntry(id int64) (*BLogEntry, int64, error) {
 	b, next, err := blog.Read(id)
 	if nil != err {
@@ -115,7 +112,7 @@ func (blog *BLog) ReadEntry(id int64) (*BLogEntry, int64, error) {
 	return ble, next, nil
 }
 
-/* get the latest offset of the file. i.e. the latest messageID */
+// get the latest offset of the file. i.e. the latest messageID
 func (blog *BLog) LatestOffset() (int64, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()

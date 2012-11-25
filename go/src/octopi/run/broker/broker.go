@@ -109,24 +109,29 @@ func followerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
 
-	for {
-
-		var request protocol.FollowRequest
-		err := websocket.JSON.Receive(ws, &request)
-		if err == io.EOF { // graceful shutdown
-			break
-		}
-
-		log.Info("Received follow request from %v.", ws.RemoteAddr())
-		conn := &protocol.Follower{ws, make(chan interface{})}
-		broker.RegisterFollower(conn, request.HostPort, request.Offsets)
-
-		// TODO: deal with sync acks
-
+	var request protocol.FollowRequest
+	err := websocket.JSON.Receive(ws, &request)
+	if err == io.EOF { // graceful shutdown
+		return
 	}
 
-	// TODO: cleanup after follower connection is lost
+	log.Info("Received follow request from %v.", ws.RemoteAddr())
+	conn := &protocol.Follower{ws}
+	broker.RegisterFollower(conn, request.Offsets)
 
+	// deal with sync
+	for{
+		var ack protocol.SyncACK
+		err := websocket.JSON.Receive(ws, &
+ack)
+		if err == io.EOF{
+			break
+		}
+		broker.SyncFollower(conn, ack)
+	}
+
+	
+	broker.DeleteFollower(conn)
 }
 
 // main starts a broker instance.
