@@ -3,25 +3,27 @@
   image, videos, and other binary messages.
 
 ## Consumer
-- Unit Tests
-- Implement close
++ Implement close
++ Failures and error handling
++ Add back-off and reconnect
 - Sequence guarantee and rewind
-- Add back-off and reconnect
+- Subscribe and wait for ACK
+- Unit Tests
 - Implement redirect
-- Failures and Error Handling
-- Allow WSS
 
 ## Producer
-- Simple publishing
-
-    ```go
-      p := producer.New
-      p.publish(message)
-    ```
-
++ Publish messages
++ Sequence Numbers
++ Failures and error handling
++ Retry and reconnection
+- Send and wait for ack
 - Unit Tests
-- Send and wait for ack.
-- Sequence Numbers.
-- Retry and reconnection
 - Implement redirect
-- Failures and Error Handling
+
+## Broker
++ Delete closed subscriptions
+- CRC32 checksum verification in broker
+- Robust logging and recovery
+- Ack producer requests
+- Ack consumer requests
+- Leader and follower

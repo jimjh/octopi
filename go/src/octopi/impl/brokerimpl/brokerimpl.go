@@ -2,7 +2,6 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"container/list"
 	"octopi/api/protocol"
 	"octopi/util/brokerlog"
 	"sync"
@@ -11,20 +10,23 @@ import (
 type Broker struct {
 	role          int                               // role of the broker
 	brokerConns   map[string]*protocol.FollowWSConn // map of assoc broker hostport to connections, for leaders
-	subscriptions map[string]*list.List      // map of topics to consumer connections
-	logs	      map[string]*brokerlog.BLog // map of topics to logs
-	leadUrl       string                     // url of the leader, for followers
-	leadOrigin    string                     // origin of the leader, for followers
-	leadConn      *websocket.Conn            // connection to the leader, for followers
-	lock          sync.Mutex                 //  lock to manage broker access
+	subscriptions map[string]SubscriptionSet        // map of topics to consumer connections
+	logs          map[string]*brokerlog.BLog        // map of topics to logs
+	leadUrl       string                            // url of the leader, for followers
+	leadOrigin    string                            // origin of the leader, for followers
+	leadConn      *websocket.Conn                   // connection to the leader, for followers
+	lock          sync.Mutex                        //  lock to manage broker access
 }
+
+// SubscriptionSet implemented as a map from *Subscription to true.
+type SubscriptionSet map[*Subscription]bool
 
 func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {
 
 	/* create the broker */
 	b := &Broker{
 		role:          rbi.Role,
-		subscriptions: make(map[string]*list.List),
+		subscriptions: make(map[string]SubscriptionSet),
 		leadUrl:       rbi.LeadUrl,
 		leadOrigin:    rbi.LeadOrigin,
 	}
@@ -43,28 +45,24 @@ func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, er
 	return b, nil
 }
 
-// RegisterProducer creates a new publication for the given producer connection
-// and blocks until the connection is lost.
-func (b *Broker) RegisterProducer(conn *websocket.Conn, req *protocol.PublishRequest) error {
-	publication := NewPublication(conn, req.Topic, b)
-	return publication.Serve()
-}
-
 // Publish publishes the given message to all subscribers.
-func (b *Broker) Publish(topic string, msg *protocol.Message) {
-	
+func (b *Broker) Publish(topic string, msg *protocol.Message) error {
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	bLog, exists := b.logs[topic]
-	if !exists{
+	// bLog, exists := b.logs[topic]
+	_, exists := b.logs[topic] // FIXME: cannot compile
+	var err error
+	if !exists {
 		// TODO: determine path of logs
-		tmpLog, err := brokerlog.OpenLog(topic)
-		if nil != err{
+		// tmpLog, err := brokerlog.OpenLog(topic)
+		if nil != err {
 			//TODO: cannot open log!
-		} else{
-			b.logs[topic] = tmpLog
-			bLog = tmpLog
+		} else {
+			// b.logs[topic] = tmpLog
+			// bLog = tmpLog
+			// FIXME: cannot compile
 		}
 	}
 
@@ -74,19 +72,21 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) {
 
 	// TODO: message duplication check and follower synchronization
 	// XXX: how to check for duplication in logs? need to loop through?
+	// XXX: just need to check the last entry
 	// TODO: this is not a good idea (should be async.)
 	// XXX: before writing to file, make sure to replace ID with offset and check
 	// for duplicates.
 
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers
-		return
+		return nil
 	}
 
-	for ele := subscriptions.Front(); ele != nil; ele = ele.Next() {
-		subscription := ele.Value.(*Subscription)
+	for subscription := range subscriptions {
 		subscription.send <- msg
 	}
+
+	return nil
 
 }
 
@@ -115,32 +115,45 @@ func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
 	b.brokerConns[hostport] = fconn
 }
 
-// RegisterConsumer creates a new subscription for the given consumer.
-//
+// Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
 // receive any messages until a producer publishes a message under that topic.
-//
-// This method blocks until the websocket connection is broken.
-func (b *Broker) RegisterConsumer(conn *websocket.Conn, req *protocol.SubscribeRequest) error {
+func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
 
 	// create new subscription
 	subscription := NewSubscription(conn)
-	var subscriptions *list.List
+	var subscriptions SubscriptionSet
 
 	b.lock.Lock()
+	defer b.lock.Unlock()
 
-	// save subscription (XXX: what if the same consumer subscribes twice?)
-	subscriptions, exists := b.subscriptions[req.Topic]
+	// save subscription
+	subscriptions, exists := b.subscriptions[topic]
 	if !exists {
-		b.subscriptions[req.Topic] = list.New()
-		subscriptions = b.subscriptions[req.Topic]
+		subscriptions = make(map[*Subscription]bool)
+		b.subscriptions[topic] = subscriptions
 	}
-	subscriptions.PushBack(subscription)
+	subscriptions[subscription] = true
 
-	b.lock.Unlock()
+	// serve
+	go subscription.Serve()
+	return subscription
 
-	// serve (blocking call)
-	return subscription.Serve()
+}
+
+// Unsubscribe removes the given subscription from the broker.
+func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	subscriptions, exists := b.subscriptions[topic]
+	if !exists {
+		return
+	}
+
+	close(subscription.send)
+	delete(subscriptions, subscription)
 
 }
 

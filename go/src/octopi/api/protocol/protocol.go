@@ -72,12 +72,11 @@ type FollowLeadInit struct {
 	// TODO: other fields to identify position of log
 }
 
-// PublishRequests are sent from producers to brokers when they want to start
-// sending messages under a particular topic.
-type PublishRequest struct {
-	Source int
-	Topic  string
-	// TODO: acknowledgments?
+// ProduceRequests are sent from producers to brokers when they want to send
+// messages under a specific topic.
+type ProduceRequest struct {
+	Topic   string
+	Message Message
 }
 
 // SubscribeRequests are sent from consumers to brokers when they want messages

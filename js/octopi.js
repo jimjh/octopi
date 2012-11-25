@@ -6,7 +6,7 @@
 //        console.log(msg);
 //      });
 //
-/*global WebSocket crc32 base64*/
+/*global window crc32 base64 _*/
 
 // ## Global octopi object
 // All octopi functions will be enclosed in this namespace.
@@ -24,6 +24,9 @@ var octopi = octopi || {};
 
     // Node type identifier.
     CONSUMER: 2,
+
+    // Max number of milliseconds between retries.
+    MAX_RETRY_INTERVAL: 2000,
 
     // Creates a new subscription request for the given topic.
     subscription: function(topic) {
@@ -45,9 +48,13 @@ var octopi = octopi || {};
   };
 
   // ## Consumer
+  // `c.endpoint`: the endpoint this consumer will send requests to.
+  // `c.subscriptions`: map from topic to websocket connection.
   var Consumer = function(host) {
-    if (!host) throw new Error('Invalid host. It should look like example.com:123.');
+    if (_.isEmpty(host) || !_.isString(host))
+      throw new TypeError('Invalid host. It should look like example.com:123.');
     this.endpoint = 'ws://' + host + '/' + protocol.PATH;
+    this.subscriptions = {};
   };
 
   // Subscribes to the given topic, invoking the callback with the received
@@ -55,14 +62,57 @@ var octopi = octopi || {};
   //
   //      c.subscribe('topic', function() { /* ... */ });
   //
+  // If a subscription already exists for the given topic, it will be ignored.
+  //} TODO: how to let application know if subscription failed?
   Consumer.prototype.subscribe = function(topic, callback) {
 
-    if (typeof topic === 'undefined') throw new Error('Invalid topic.');
-    if (!callback) throw new Error('Invalid callback.');
+    if (_.isEmpty(topic) || !_.isString(topic))
+      throw new TypeError('Invalid topic. Should be a non-empty string.');
+    if (!_.isFunction(callback))
+      throw new TypeError('Invalid callback. Should be a function.');
 
-    var ws = new WebSocket(this.endpoint);
-    ws.onmessage = handle(callback);
-    ws.onopen = function() { ws.send(protocol.subscription(topic)); };
+    if (topic in this.subscriptions) return; // already subscribed
+
+    var conn = this.subscriptions[topic] = new window.WebSocket(this.endpoint);
+
+    conn.onmessage = handle(callback);
+    conn.onopen = function() {
+      // TODO: wait for ACK; timeout
+      // TODO: close connection on failure
+      conn.send(protocol.subscription(topic));
+    };
+
+    conn.onclose = _.bind(onclose, this, conn, topic, callback);
+
+  };
+
+  // Unsubscribes from the given topic by closing the websocket connection.
+  // This is a no-op if a subscription does not already exist for the topic.
+  Consumer.prototype.unsubscribe = function(topic) {
+
+    if (_.isEmpty(topic) || !_.isString(topic))
+      throw new TypeError('Invalid topic. Should be a non-empty string.');
+    if (!(topic in this.subscriptions)) return;
+
+    var conn = this.subscriptions[topic];
+    delete this.subscriptions[topic];
+    conn.close();
+
+  };
+
+  // Resubscribes to the given topic. This is a private method. Use `subscribe`
+  // and `unsubscribe` instead.
+  Consumer.prototype.resubscribe = function(topic, callback) {
+
+    var that = this;
+    var wait = _.random(protocol.MAX_RETRY_INTERVAL);
+
+    // TODO: use last offset
+    // TODO: should we give up after a certain number of retries?
+    window.setTimeout(function() {
+      delete that.subscriptions[topic];
+      that.subscribe(topic, callback);
+    }, wait);
 
   };
 
@@ -79,9 +129,21 @@ var octopi = octopi || {};
       console.log(message);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
 
-      // TODO: sequence guarantees, and reconnect on checksum failure
+      // TODO: sequence guarantees, and rewind on checksum failure
 
     };
+  };
+
+  // Invoked when a websocket connection is closed.
+  var onclose = function(conn, topic, cb) {
+
+    // do nothing if intentional close, or different connection
+    if (!(topic in this.subscriptions && this.subscriptions[topic] === conn))
+      return;
+
+    // back off and reconnect
+    this.resubscribe(topic, cb);
+
   };
 
   o.protocol = protocol;
