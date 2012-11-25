@@ -20,13 +20,17 @@ const (
 	FAILURE  = 400 // failed operation
 )
 
+const (
+	UPDATE = iota
+	COMMIT
+)
+
 // Max number of milliseconds between retries.
 // XXX: move this to a configuration file
 var MAX_RETRY_INTERVAL = 2000
 
 type Follower struct {
 	Conn  *websocket.Conn
-	Block chan interface{}
 }
 
 // FollowRequests are sent by brokers to registers/leaders.
@@ -38,6 +42,14 @@ type FollowRequest struct {
 // FollowACKs are sent from leaders to followers in response to follow
 // requests.
 type FollowACK struct {
+}
+
+// SyncRequests are sent from leaders to followers asking them to write 
+// to log.
+type SyncRequest struct{
+	Type int
+	Topic string
+	Message []byte //can be the highwatermark if used as commit
 }
 
 // SyncACKs are sent from followers to leaders after receiving sync messages
