@@ -68,6 +68,8 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) {
 		}
 	}
 
+	bLog = bLog //XXX: Temporary placeholder
+
 	b.FollowBroadcast(msg)
 
 	// TODO: message duplication check and follower synchronization

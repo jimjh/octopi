@@ -11,11 +11,8 @@ import(
 	"errors"
 )
 
-const(
-	TIMETOFLUSH = 10000
-)
-
 type BLogEntry struct{
+	ID int64
 	Length int
 	Checksum uint32
 	RequestId []byte
@@ -43,23 +40,38 @@ func OpenLog(logPath string) (*BLog, error){
 	return blog, err
 }
 
+func (blog *BLog) NextMsgId(id int64)(int64, error){
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
+	msgLenBytes := make([]byte, 4)
+	bytesRead , err := blog.logFile.ReadAt(msgLenBytes, id)
+	if bytesRead != 4 || nil!=err{
+		return -1, errors.New("Next message search failed")
+	}
+	msgLen64, _ := binary.Varint(msgLenBytes)
+	if msgLen64<=0{
+		return -1, errors.New("Log format corrupted")
+	}
+	return id+msgLen64, nil
+}
+
 /* reads from offset id. useful in recovery */
 func (blog *BLog) Read(id int64) ([]byte, error){
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	var msgLen int
 	msgLenBytes := make([]byte, 4) //4 bytes for message length
-	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id+8) //offset for ID
+	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id) //offset for ID
 	if bytesRead != 4 || nil!=err{
 		return nil, errors.New("Did not read in correctly")
 	}
 	msgLen64, _ := binary.Varint(msgLenBytes)
 	msgLen = int(msgLen64)
-	if nil!=err || msgLen==0{
-		return nil, err
+	if msgLen<=0{
+		return nil, errors.New("Log format corrupted")
 	}
 	read := make([]byte, msgLen)
-	bytesRead, err = blog.logFile.ReadAt(read, id+8)
+	bytesRead, err = blog.logFile.ReadAt(read, id)
 	if bytesRead != msgLen{
 		return nil, errors.New("Did not read in correctly")
 	}
@@ -90,6 +102,7 @@ func (blog *BLog) ReadEntry(id int64)(*BLogEntry, error){
 	payload := b[40:]
 	
 	ble := &BLogEntry{
+		ID: id,
 		Length: msgLen,
 		Checksum: cksm,
 		RequestId: hash,
@@ -114,16 +127,10 @@ func (blog *BLog) WriteBytes(b []byte) (int, error){
 	if nil!=err{
 		return 0, err
 	}
-	msgidbuf := new(bytes.Buffer)
-	binary.Write(msgidbuf, binary.LittleEndian, messageID)
 	
-	toWrite := make([]byte, 0, len(msgidbuf.Bytes())+len(b))
-	toWrite = append(msgidbuf.Bytes())
-	toWrite = append(b)
-
 	blog.tail = messageID
 
-	return blog.logFile.Write(toWrite)
+	return blog.logFile.Write(b)
 }
 
 /* writes formatted messages. for general usage */
@@ -131,8 +138,6 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error){
 	
 	/* construct int64 ID of message */
 	messageID, _ := blog.logFile.Seek(0, os.SEEK_END)
-	msgidbuf := new(bytes.Buffer)
-	binary.Write(msgidbuf, binary.LittleEndian, messageID)
 
 	/* construct length field */
 	var writeLength int 
@@ -152,10 +157,8 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error){
 	sha256hash.Write([]byte(hashstr))
 	
 	/* constructs the total bytes array for consecutive write */
-	totalBytes := len(msgidbuf.Bytes())+writeLength
-	toWrite := make([]byte, 0, totalBytes)
+	toWrite := make([]byte, 0, writeLength)
 
-	toWrite = append(toWrite, msgidbuf.Bytes()...)
 	toWrite = append(toWrite, lenbuf...)
 	toWrite = append(toWrite, cksmbuf.Bytes()...)
 	toWrite = append(toWrite, sha256hash.Sum(nil)...)
