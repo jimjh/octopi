@@ -1,16 +1,16 @@
 package brokerimpl
 
 import (
-	"code.google.com/p/go.net/websocket"
-	"fmt"
 	"bytes"
+	"code.google.com/p/go.net/websocket"
 	"encoding/binary"
+	"fmt"
+	"io"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/impl/brokerlog"
 	"octopi/util/log"
 	"os"
-	"io"
 	"sync"
 	"time"
 )
@@ -37,6 +37,7 @@ func New(port int, master string) *Broker {
 	b := &Broker{
 		subscriptions:   make(map[string]SubscriptionSet),
 		followers:       make(map[*protocol.Follower]bool),
+		logs:            make(map[string]*brokerlog.BLog),
 		insyncFollowers: make(map[string]FollowerSet),
 	}
 
@@ -160,9 +161,11 @@ func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]in
 	// loop through topics of offsets
 	for topic, offset := range offsets {
 		bLog, exists := b.logs[topic]
-		if !exists {continue}
+		if !exists {
+			continue
+		}
 		err := b.sendSyncRequest(conn, bLog.HighWaterMark(), offset, topic, bLog)
-		if err == io.EOF{
+		if err == io.EOF {
 			// return if connection breaks
 			return
 		}
@@ -170,18 +173,20 @@ func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]in
 }
 
 //updates to check if follower has caught up or not
-func (b* Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK){
+func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	bLog, exists := b.logs[ack.Topic]
-	if !exists{ return }
+	if !exists {
+		return
+	}
 	b.sendSyncRequest(conn, bLog.HighWaterMark(), ack.Offset, ack.Topic, bLog)
 }
 
-func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error{
+func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {
 	var sreq protocol.SyncRequest
 	sreq.Topic = topic
-	if myOffset <= followerOffset{
+	if myOffset <= followerOffset {
 		// caught up!
 		b.insyncFollowers[topic][conn] = true
 		sreq.Type = protocol.COMMIT
@@ -189,7 +194,7 @@ func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, follow
 		// XXX: what if write error?
 		binary.Write(buf, binary.LittleEndian, myOffset)
 		sreq.Message = buf.Bytes()
-	} else{
+	} else {
 		// not yet caught up!
 		// XXX: what if read error?
 		msg, _, _ := blog.Read(followerOffset)
@@ -199,11 +204,11 @@ func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, follow
 	return websocket.JSON.Send(conn.Conn, sreq)
 }
 
-func (b *Broker) DeleteFollower(follower *protocol.Follower){
+func (b *Broker) DeleteFollower(follower *protocol.Follower) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	delete(b.followers, follower)
-	for _, followers := range b.insyncFollowers{
+	for _, followers := range b.insyncFollowers {
 		delete(followers, follower)
 	}
 }
