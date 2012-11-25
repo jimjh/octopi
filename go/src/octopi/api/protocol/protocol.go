@@ -8,13 +8,6 @@ import (
 	"container/list"
 )
 
-// Constants for contacting register.
-const (
-	BROKER = iota
-	PRODUCER
-	CONSUMER
-)
-
 // Constants for register to tell which role a broker is taking.
 const (
 	LEADER = iota
@@ -28,48 +21,38 @@ const (
 	FOLLOW    = "follow"
 )
 
+const (
+	SUCCESS  = 200 // successful operation
+	REDIRECT = 304 // redirect to attached host:port
+	FAILURE  = 400 // failed operation
+)
+
 type FollowWSConn struct {
 	FollowWS *websocket.Conn
 	Block    chan interface{}
 }
 
-// Used by brokers to contact register.
-type BrokerRegInit struct {
-	Source   int
-	HostPort string
+// FollowRequests are sent by brokers to registers/leaders.
+type FollowRequest struct {
+	Offsets map[string]int64 // high watermarks of each topic log
 }
 
-/* used by register to assign brokers */
-type RegBrokerInit struct {
-	Role       int
-	LeadUrl    string     //url of the leader, for followers
-	LeadOrigin string     //origin of the leader, for followers
-	Brokers    *list.List //list of associated brokers used if new leader
+// FollowACKs are sent from leaders to followers in response to follow
+// requests.
+type FollowACK struct {
 }
 
-/* used by producers to contact register */
-type ProdRegInit struct {
-	Source int
+// SyncACKs are sent from followers to leaders after receiving sync messages
+// from leader.
+type SyncACK struct {
 	Topic  string
+	Offset int64 // offset of last message received
 }
 
-/* used by register to tell producer the lead broker */
-type RegProdInit struct {
-	LeadUrl    string
-	LeadOrigin string
-}
-
-/* used by register to tell consumer its assigned broker */
-type RegConsInit struct {
-	BrokerUrl    string
-	BrokerOrigin string
-}
-
-/* used by followers to contact leader */
-type FollowLeadInit struct {
-	Source   int
-	HostPort string
-	// TODO: other fields to identify position of log
+// ACKs are sent from registers/brokers to producers/consumers/brokers.
+type Ack struct {
+	Status   int    // status code
+	HostPort string // optional redirect
 }
 
 // ProduceRequests are sent from producers to brokers when they want to send
@@ -82,10 +65,7 @@ type ProduceRequest struct {
 // SubscribeRequests are sent from consumers to brokers when they want messages
 // from a particular topic.
 type SubscribeRequest struct {
-	Source int // XXX: should use inheritance here.
-	Topic  string
-	// TODO: other fields to identify position of wanted
-	// TODO: acknowledgements
+	Topic string
 }
 
 // Messages sent from producers to brokers; the enclosed payload is broadcast to
