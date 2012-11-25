@@ -23,7 +23,7 @@ func main() {
 	var topic = flag.String("topic", "hello", "topic to send message under")
 	flag.Parse()
 
-	p, err := producer.New(*broker)
+	p, err := producer.New(*broker, nil)
 	if nil != err {
 		log.Fatal(err.Error())
 	}

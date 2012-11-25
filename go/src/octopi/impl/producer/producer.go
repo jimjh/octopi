@@ -2,9 +2,12 @@ package producer
 
 import (
 	"code.google.com/p/go.net/websocket"
+	crand "crypto/rand"
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
+	"math/big"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/log"
@@ -18,6 +21,7 @@ type Producer struct {
 	conn   *websocket.Conn // persistent websocket connection
 	seqnum uint32          // sequence number of messages
 	lock   sync.Mutex      // lock for producer state
+	id     string          // producer ID
 }
 
 // Default origin to use.
@@ -27,11 +31,22 @@ var ORIGIN = "http://localhost"
 // XXX: move this to a configuration file
 var MAX_RETRIES = 5
 
+func seed() {
+	randint, _ := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
+	rand.Seed(randint.Int64())
+}
+
 // New creates a new producer that sends messages to broker that lives
 // at the given hostport.
-func New(hostport string) (*Producer, error) {
+func New(hostport string, id *string) (*Producer, error) {
 
-	p := new(Producer)
+	if nil == id {
+		seed()
+		idStr := fmt.Sprintf("%d", rand.Uint32())
+		id = &idStr
+	}
+
+	p := &Producer{id: *id}
 	addr := "ws://" + hostport + "/" + protocol.PUBLISH
 
 	if err := p.connect(addr); nil != err {
@@ -79,7 +94,7 @@ func (p *Producer) Send(topic string, payload []byte) error {
 
 	seqnum := atomic.AddUint32(&p.seqnum, 1)
 	message := protocol.Message{seqnum, payload, crc32.ChecksumIEEE(payload)}
-	request := &protocol.ProduceRequest{topic, message}
+	request := &protocol.ProduceRequest{p.id, topic, message}
 
 	log.Debug("Sending %v", request)
 

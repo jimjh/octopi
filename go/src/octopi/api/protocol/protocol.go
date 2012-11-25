@@ -70,6 +70,7 @@ type Ack struct {
 // ProduceRequests are sent from producers to brokers when they want to send
 // messages under a specific topic.
 type ProduceRequest struct {
+	ID      string // id of producer
 	Topic   string
 	Message Message
 }
