@@ -2,7 +2,9 @@ package producer
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"fmt"
 	"hash/crc32"
+	"io"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/log"
@@ -11,6 +13,7 @@ import (
 	"time"
 )
 
+// Producers publish messages to brokers.
 type Producer struct {
 	conn   *websocket.Conn // persistent websocket connection
 	seqnum uint32          // sequence number of messages
@@ -71,7 +74,7 @@ func (p *Producer) reconnect() error {
 }
 
 // Send sends the message to the broker, and blocks until an acknowledgement is
-// received.
+// received. If the max number of retries is exceeded, returns the last error.
 func (p *Producer) Send(topic string, payload []byte) error {
 
 	seqnum := atomic.AddUint32(&p.seqnum, 1)
@@ -84,18 +87,55 @@ func (p *Producer) Send(topic string, payload []byte) error {
 	for tries := 1; tries <= MAX_RETRIES; tries++ {
 
 		err = websocket.JSON.Send(p.conn, request)
-		if nil == err {
-			// TODO: wait for ack
-			// TODO: timeout and retry
-			break // success
+		if nil == err { // wait for ACK
+			timeout := time.Duration(protocol.MAX_RETRY_INTERVAL)
+			select {
+			case ack, ok := <-p.receiveAck():
+				if ok {
+					if protocol.SUCCESS == ack.Status {
+						log.Debug("Ack received.")
+						break // success
+					}
+					continue
+				} // otherwise, reconnect
+				err = &ProduceError{seqnum}
+			case <-time.After(timeout * time.Millisecond):
+				log.Debug("Timed out waiting for ACK ...")
+				err = &ProduceError{seqnum}
+				continue
+			}
 		}
 
 		log.Error(err.Error())
 		p.reconnect()
+		log.Debug("Retrying...")
 
 	}
 
 	return err
+
+}
+
+// receiveAck waits for an acknowledgement from the broker.
+func (p *Producer) receiveAck() <-chan *protocol.Ack {
+
+	ackc := make(chan *protocol.Ack)
+	go func() {
+		for {
+			var ack protocol.Ack
+			err := websocket.JSON.Receive(p.conn, &ack)
+			if nil == err {
+				ackc <- &ack
+				break
+			}
+			if io.EOF == err {
+				close(ackc)
+				break
+			}
+		}
+	}()
+
+	return ackc
 
 }
 
@@ -105,4 +145,13 @@ func (p *Producer) Close() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.conn.Close()
+}
+
+// ProduceErrors indicate that a produce request failed.
+type ProduceError struct {
+	seqnum uint32
+}
+
+func (e *ProduceError) Error() string {
+	return fmt.Sprintf("Acknowledgement for message %d was not received.", e.seqnum)
 }

@@ -7,19 +7,21 @@ import (
 	"code.google.com/p/go.net/websocket"
 )
 
-// Constants for URL endpoints
+// URL endpoints
 const (
 	PUBLISH   = "publish"
 	SUBSCRIBE = "subscribe"
 	FOLLOW    = "follow"
 )
 
+// Status codes
 const (
 	SUCCESS  = 200 // successful operation
 	REDIRECT = 304 // redirect to attached host:port
 	FAILURE  = 400 // failed operation
 )
 
+// Sync types
 const (
 	UPDATE = iota
 	COMMIT
@@ -30,7 +32,7 @@ const (
 var MAX_RETRY_INTERVAL = 2000
 
 type Follower struct {
-	Conn  *websocket.Conn
+	Conn *websocket.Conn
 }
 
 // FollowRequests are sent by brokers to registers/leaders.
@@ -44,11 +46,11 @@ type FollowRequest struct {
 type FollowACK struct {
 }
 
-// SyncRequests are sent from leaders to followers asking them to write 
+// SyncRequests are sent from leaders to followers asking them to write
 // to log.
-type SyncRequest struct{
-	Type int
-	Topic string
+type SyncRequest struct {
+	Type    int
+	Topic   string
 	Message []byte //can be the highwatermark if used as commit
 }
 

@@ -39,7 +39,7 @@ func pipe(p *producer.Producer, topic string) {
 	for {
 		line, _ := reader.ReadBytes('\n')
 		if err := p.Send(topic, line); nil != err {
-			log.Error(err.Error())
+			log.Error("Gave up: %s", err.Error())
 			break
 		}
 	}
