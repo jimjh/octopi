@@ -1,7 +1,7 @@
 ## Protocol
 - Switch away from JSON to msgpack to allow binary data to allow streaming
   image, videos, and other binary messages.
-- Configuration file
++ Configuration file
 
 ## Consumer
 + Implement close
