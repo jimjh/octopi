@@ -51,22 +51,20 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	// bLog, exists := b.logs[topic]
-	_, exists := b.logs[topic] // FIXME: cannot compile
-	var err error
+	bLog, exists := b.logs[topic]
 	if !exists {
 		// TODO: determine path of logs
-		// tmpLog, err := brokerlog.OpenLog(topic)
+		tmpLog, err := brokerlog.OpenLog(topic)
 		if nil != err {
 			//TODO: cannot open log!
+			return err
 		} else {
-			// b.logs[topic] = tmpLog
-			// bLog = tmpLog
-			// FIXME: cannot compile
+			b.logs[topic] = tmpLog
+			bLog = tmpLog
 		}
 	}
 
-	bLog = bLog //XXX: Temporary placeholder
+	bLog = bLog //FIXME: Temporary placeholder
 
 	b.FollowBroadcast(msg)
 

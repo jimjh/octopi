@@ -16,8 +16,8 @@ import (
 	"sync"
 )
 
-type BLogEntry struct{
-	ID int64
+type BLogEntry struct {
+	ID        int64
 	Length    int    // XXX: should be uint32 to fix value at 4 bytes
 	Checksum  uint32 // crc32 checksum of payload
 	RequestId []byte // sha256 of producer addr + seq num; used to prevent dups
@@ -49,19 +49,19 @@ func OpenLog(path string) (*BLog, error) {
 
 }
 
-func (blog *BLog) NextMsgId(id int64)(int64, error){
+func (blog *BLog) NextMsgId(id int64) (int64, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	msgLenBytes := make([]byte, 4)
-	bytesRead , err := blog.logFile.ReadAt(msgLenBytes, id)
-	if bytesRead != 4 || nil!=err{
+	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id)
+	if bytesRead != 4 || nil != err {
 		return -1, errors.New("Next message search failed")
 	}
 	msgLen64, _ := binary.Varint(msgLenBytes)
-	if msgLen64<=0{
+	if msgLen64 <= 0 {
 		return -1, errors.New("Log format corrupted")
 	}
-	return id+msgLen64, nil
+	return id + msgLen64, nil
 }
 
 // Read reads from offset ID, useful for recovery
@@ -71,9 +71,9 @@ func (blog *BLog) Read(id int64) ([]byte, error) {
 
 	// XXX: should be fixed at uint32
 	var msgLen int
-	msgLenBytes := make([]byte, 4) //4 bytes for message length
+	msgLenBytes := make([]byte, 4)                         //4 bytes for message length
 	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id) //offset for ID
-	if bytesRead != 4 || nil!=err{
+	if bytesRead != 4 || nil != err {
 		return nil, errors.New("Did not read in correctly")
 	}
 
@@ -81,12 +81,12 @@ func (blog *BLog) Read(id int64) ([]byte, error) {
 	msgLen64, _ := binary.Varint(msgLenBytes)
 	msgLen = int(msgLen64)
 
-	if msgLen<=0{
+	if msgLen <= 0 {
 		return nil, errors.New("Log format corrupted")
 	}
 	read := make([]byte, msgLen)
 	bytesRead, err = blog.logFile.ReadAt(read, id)
-	if bytesRead != msgLen{
+	if bytesRead != msgLen {
 		return nil, err
 	}
 	if bytesRead != msgLen {
@@ -120,9 +120,9 @@ func (blog *BLog) ReadEntry(id int64) (*BLogEntry, error) {
 	payload := b[40:]
 
 	ble := &BLogEntry{
-		ID: id,
-		Length: msgLen,
-		Checksum: cksm,
+		ID:        id,
+		Length:    msgLen,
+		Checksum:  cksm,
 		RequestId: hash,
 		Payload:   payload,
 	}
