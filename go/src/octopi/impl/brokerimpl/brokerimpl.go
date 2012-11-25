@@ -25,7 +25,7 @@ type Broker struct {
 	leader          *websocket.Conn             // connection to the leader
 	port            int                         // port number of this broker
 	lock            sync.Mutex                  // lock to manage broker access
-	leadChan chan int //channel to make sure leader not nil
+	leadChan        chan int                    //channel to make sure leader not nil
 }
 
 // SubscriptionSet implemented as a map from *Subscription to true.
@@ -40,7 +40,7 @@ func New(port int, master string) *Broker {
 		followers:       make(map[*protocol.Follower]bool),
 		logs:            make(map[string]*brokerlog.BLog),
 		insyncFollowers: make(map[string]FollowerSet),
-		leadChan: make(chan int),
+		leadChan:        make(chan int),
 	}
 
 	go b.register(master)
@@ -91,19 +91,19 @@ func (b *Broker) origin() string {
 }
 
 // start handling messages once leader is ready
-func (b *Broker) HandleMessages(){
+func (b *Broker) HandleMessages() {
 	// blocks until leader is ready
 	<-b.leadChan
-	for{
+	for {
 		// start synchronization process
 		var sreq protocol.SyncRequest
 		err := websocket.JSON.Receive(b.leader, &sreq)
-		if err==io.EOF{
+		if err == io.EOF {
 			// TODO: Notify register of leader failure
 		}
-		
 
-}	}
+	}
+}
 
 // Publish publishes the given message to all subscribers.
 func (b *Broker) Publish(topic string, msg *protocol.Message) error {
@@ -147,11 +147,11 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 }
 
-func (b *Broker) broadcastWrites(msg *protocol.Message){
+func (b *Broker) broadcastWrites(msg *protocol.Message) {
 	//TODO: implement this method
 }
 
-func (b *Broker) broadcastCommits(msg *protocol.Message){
+func (b *Broker) broadcastCommits(msg *protocol.Message) {
 	//TODO: implement this method
 }
 
@@ -186,10 +186,10 @@ func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 		return
 	}
 	_, exists = b.insyncFollowers[ack.Topic][conn]
-	if !exists{
+	if !exists {
 		// ACK from out of sync follower
 		b.sendSyncRequest(conn, bLog.HighWaterMark(), ack.Offset, ack.Topic, bLog)
-	} else{
+	} else {
 		// ACK of write from in-sync follower
 		// TODO: send message back to producer
 	}
