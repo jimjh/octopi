@@ -108,6 +108,7 @@ var octopi = octopi || {};
     var wait = _.random(protocol.MAX_RETRY_INTERVAL);
 
     // TODO: use last offset
+    // TODO: should we give up after a certain number of retries?
     window.setTimeout(function() {
       delete that.subscriptions[topic];
       that.subscribe(topic, callback);
