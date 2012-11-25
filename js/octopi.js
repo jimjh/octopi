@@ -28,9 +28,17 @@ var octopi = octopi || {};
     // Max number of milliseconds between retries.
     MAX_RETRY_INTERVAL: 2000,
 
+    // Status codes
+    SUCCESS: 200,
+
     // Creates a new subscription request for the given topic.
     subscription: function(topic) {
       return JSON.stringify({Source: protocol.CONSUMER, Topic: topic});
+    },
+
+    // Parses received ACK into a javascript object.
+    ack: function(string) {
+      return JSON.parse(string);
     },
 
     // Parses received message into a javascript object.
@@ -75,11 +83,13 @@ var octopi = octopi || {};
 
     var conn = this.subscriptions[topic] = new window.WebSocket(this.endpoint);
 
-    conn.onmessage = handle(callback);
+    conn.onmessage = handle(conn, callback);
     conn.onopen = function() {
-      // TODO: wait for ACK; timeout
-      // TODO: close connection on failure
-      conn.send(protocol.subscription(topic));
+      // if unable to send, just close and resubscribe
+      if (!conn.send(protocol.subscription(topic))) return conn.close();
+      // otherwise, wait for ACK
+      var wait = _.random(protocol.MAX_RETRY_INTERVAL);
+      conn.ack = window.setTimeout(conn.onopen, wait);
     };
 
     conn.onclose = _.bind(onclose, this, conn, topic, callback);
@@ -118,20 +128,28 @@ var octopi = octopi || {};
 
   // Returns a function that handles incoming websocket messages and passes
   // them to the user-supplied callback.
-  var handle = function(callback) {
-    return function(event) {
+  var handle = function(conn, callback) {
 
+    var onack = function(event) {
+      var ack = protocol.ack(event.data);
+      if (ack.Status !== protocol.SUCCESS) return;
+      window.clearTimeout(conn.ack); // stop retrying
+      delete conn.ack;
+    };
+
+    var ondata = function(event) {
       var message = protocol.message(event.data);
-
       var checksum = protocol.checksum(message);
       if (checksum == message.Checksum) return callback(message.Payload);
-
-      console.log(message);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
-
       // TODO: sequence guarantees, and rewind on checksum failure
-
     };
+
+    return function(event) {
+      if (!_.isUndefined(conn.ack)) return onack(event);
+      return ondata(event);
+    };
+
   };
 
   // Invoked when a websocket connection is closed.
