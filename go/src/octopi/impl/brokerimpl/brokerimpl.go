@@ -19,7 +19,8 @@ import (
 // follower, and one of the follower is a broker (so it registers with itself.)
 type Broker struct {
 	followers       map[*protocol.Follower]bool // set of followers
-	insyncFollowers map[string]FollowerSet      //list of followers that are in-sync with leader on a certain topic
+	insyncFollowers map[string]FollowerSet      // list of followers that are in-sync with leader on a certain topic
+	upToDateTopics  map[string]bool             // set of up to date topics
 	subscriptions   map[string]SubscriptionSet  // map of topics to consumer connections
 	logs            map[string]*brokerlog.BLog  // map of topics to logs
 	leader          *websocket.Conn             // connection to the leader
@@ -40,6 +41,7 @@ func New(port int, master string) *Broker {
 		followers:       make(map[*protocol.Follower]bool),
 		logs:            make(map[string]*brokerlog.BLog),
 		insyncFollowers: make(map[string]FollowerSet),
+		upToDateTopics:  make(map[string]bool),
 		leadChan:        make(chan int),
 	}
 
@@ -102,6 +104,41 @@ func (b *Broker) HandleMessages() {
 			// TODO: Notify register of leader failure
 		}
 
+		currtopic := sreq.Topic
+
+		b.lock.Lock()
+		tLog, exists := b.logs[currtopic]
+
+		// create a new log if topic not seen before
+		if !exists {
+			// TODO: set correct path and handle failure
+			b.logs[currtopic], _ = brokerlog.OpenLog(currtopic)
+			tLog = b.logs[currtopic]
+		}
+		// XXX: what to do if log failure?
+		switch sreq.Type {
+		case protocol.UPDATE:
+			tLog.WriteBytes(sreq.Message)
+			// advance hwmark if not up-to-date yet
+			if !b.upToDateTopics[currtopic] {
+				tLog.Commit(tLog.Tail())
+			}
+			// construct update/write acknowledgement
+			synAck := protocol.SyncACK{
+				Topic:  currtopic,
+				Offset: tLog.HighWaterMark(),
+			}
+			b.lock.Unlock()
+			// send the update/write acknowledgement
+			websocket.JSON.Send(b.leader, synAck)
+		case protocol.COMMIT:
+			b.upToDateTopics[currtopic] = true
+			var msgid int64
+			buf := bytes.NewBuffer(sreq.Message)
+			binary.Read(buf, binary.LittleEndian, &msgid)
+			tLog.Commit(msgid)
+			b.lock.Unlock()
+		}
 	}
 }
 
@@ -128,7 +165,6 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 	bLog = bLog //FIXME: temporary placeholder
 
-	// TODO: write to leader log
 	b.broadcastWrites(msg)
 	// TODO: wait for ACKs
 	b.broadcastCommits(msg)

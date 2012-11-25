@@ -47,7 +47,18 @@ func OpenLog(path string) (*BLog, error) {
 
 }
 
-func (blog *BLog) LastId() int64{
+// Tail returns the end of the log
+func (blog *BLog) Tail() int64 {
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
+	cur, _ := blog.logFile.Seek(0, os.SEEK_CUR)
+	end, _ := blog.logFile.Seek(0, os.SEEK_END)
+	blog.logFile.Seek(cur, os.SEEK_SET)
+	return end
+}
+
+// LastId returns the last written messageID of the log
+func (blog *BLog) LastId() int64 {
 	return blog.lastId
 }
 
@@ -126,7 +137,7 @@ func (blog *BLog) LatestOffset() (int64, error) {
 	return blog.logFile.Seek(0, os.SEEK_END)
 }
 
-/* write raw bytes to the end of the file. assumes correct formatting. for use in recovery */
+// write raw bytes to the end of the file. assumes correct formatting. for use in recovery
 func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
@@ -141,6 +152,7 @@ func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	return blog.logFile.Write(b)
 }
 
+// write raw bytes to specified position
 func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
@@ -150,7 +162,7 @@ func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error) {
 	return blog.logFile.WriteAt(b, pos)
 }
 
-//writes formatted message to the end of file
+// writes formatted message to the end of file
 func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 	toWrite, err := generateWrite(hostport, msg)
 	if nil != err {
@@ -165,7 +177,7 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 	return blog.logFile.Write(toWrite)
 }
 
-/* writes formatted messages to a specified pos in file. for general usage */
+// writes formatted messages to a specified pos in file. for general usage
 func (blog *BLog) WriteAt(hostport string, msg protocol.Message, pos int64) (int, error) {
 	toWrite, err := generateWrite(hostport, msg)
 
