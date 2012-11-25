@@ -5,13 +5,6 @@ package protocol
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"container/list"
-)
-
-// Constants for register to tell which role a broker is taking.
-const (
-	LEADER = iota
-	FOLLOWER
 )
 
 // Constants for URL endpoints
@@ -27,14 +20,19 @@ const (
 	FAILURE  = 400 // failed operation
 )
 
-type FollowWSConn struct {
-	FollowWS *websocket.Conn
-	Block    chan interface{}
+// Max number of milliseconds between retries.
+// XXX: move this to a configuration file
+var MAX_RETRY_INTERVAL = 2000
+
+type Follower struct {
+	Conn  *websocket.Conn
+	Block chan interface{}
 }
 
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
-	Offsets map[string]int64 // high watermarks of each topic log
+	HostPort string           // host:port of follower
+	Offsets  map[string]int64 // high watermarks of each topic log
 }
 
 // FollowACKs are sent from leaders to followers in response to follow

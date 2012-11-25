@@ -24,10 +24,6 @@ var ORIGIN = "http://localhost"
 // XXX: move this to a configuration file
 var MAX_RETRIES = 5
 
-// Max number of milliseconds between retries.
-// XXX: move this to a configuration file
-var MAX_RETRY_INTERVAL = 2000
-
 // New creates a new producer that sends messages to broker that lives
 // at the given hostport.
 func New(hostport string) (*Producer, error) {
@@ -68,7 +64,7 @@ func (p *Producer) reconnect() error {
 	p.conn.Close()
 
 	// back off and reconnect
-	backoff := time.Duration(rand.Intn(MAX_RETRY_INTERVAL))
+	backoff := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
 	time.Sleep(backoff * time.Millisecond)
 	return p.connect(p.conn.RemoteAddr().String())
 
