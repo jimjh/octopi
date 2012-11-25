@@ -3,7 +3,7 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"octopi/api/protocol"
-	"octopi/util/brokerlog"
+	"octopi/impl/brokerlog"
 	"sync"
 )
 
