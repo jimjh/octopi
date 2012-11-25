@@ -3,11 +3,11 @@ package brokerlog
 // XXX: add header comment
 
 import (
-	"fmt"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"octopi/api/protocol"
 	"os"
 	"sync"
@@ -15,7 +15,7 @@ import (
 
 type BLogEntry struct {
 	ID        int64
-	Length    uint32 
+	Length    uint32
 	Checksum  uint32 // crc32 checksum of payload
 	RequestId []byte // sha256 of producer addr + seq num; used to prevent dups
 	Payload   []byte // contents
@@ -59,18 +59,18 @@ func (blog *BLog) Read(id int64) ([]byte, int64, error) {
 	msgLenBuf := bytes.NewBuffer(msgLenBytes)
 	err = binary.Read(msgLenBuf, binary.LittleEndian, &msgLen)
 
-	if err!=nil {
+	if err != nil {
 		return nil, -1, err
 	}
 
 	read := make([]byte, msgLen)
 	bytesRead, err = blog.logFile.ReadAt(read, id)
-	
+
 	if bytesRead != int(msgLen) {
 		return nil, -1, errors.New("Did not read in correctly")
 	}
 
-	return read, id+int64(msgLen), nil
+	return read, id + int64(msgLen), nil
 
 }
 
@@ -132,17 +132,17 @@ func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	return blog.logFile.Write(b)
 }
 
-func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error){
+func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
-	
+
 	return blog.logFile.WriteAt(b, pos)
 }
 
 //writes formatted message to the end of file
-func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error){
+func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 	toWrite, err := generateWrite(hostport, msg)
-	if nil!=err{
+	if nil != err {
 		return -1, err
 	}
 
@@ -157,7 +157,7 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error){
 func (blog *BLog) WriteAt(hostport string, msg protocol.Message, pos int64) (int, error) {
 	toWrite, err := generateWrite(hostport, msg)
 
-	if nil!=err{
+	if nil != err {
 		return -1, err
 	}
 
@@ -169,36 +169,36 @@ func (blog *BLog) WriteAt(hostport string, msg protocol.Message, pos int64) (int
 
 // generates the byte representation of hostport and message input
 func generateWrite(hostport string, msg protocol.Message) ([]byte, error) {
-        /* construct length field */
-        var writeLength uint32
-        writeLength = 4 + 4 + 32 + uint32(len(msg.Payload))
-        lenBuf := new(bytes.Buffer)
-        err := binary.Write(lenBuf, binary.LittleEndian, writeLength)
-        
-        if nil != err{
-                return nil, err
-        }
+	/* construct length field */
+	var writeLength uint32
+	writeLength = 4 + 4 + 32 + uint32(len(msg.Payload))
+	lenBuf := new(bytes.Buffer)
+	err := binary.Write(lenBuf, binary.LittleEndian, writeLength)
 
-        cksmbuf := new(bytes.Buffer)
-        binary.Write(cksmbuf, binary.LittleEndian, msg.Checksum)
+	if nil != err {
+		return nil, err
+	}
 
-        /* construct request_id field */
-        reqstr := fmt.Sprintf("%d", msg.ID)
-        hashstr := hostport + ":" + reqstr
-        sha256hash := sha256.New()
-        sha256hash.Write([]byte(hashstr))
+	cksmbuf := new(bytes.Buffer)
+	binary.Write(cksmbuf, binary.LittleEndian, msg.Checksum)
 
-        /* constructs the total bytes array for consecutive write */
-        toWrite := make([]byte, 0, writeLength)
-        toWrite = append(toWrite, lenBuf.Bytes()...)
-        toWrite = append(toWrite, cksmbuf.Bytes()...)
-        toWrite = append(toWrite, sha256hash.Sum(nil)...)
-        toWrite = append(toWrite, msg.Payload...)
-	
+	/* construct request_id field */
+	reqstr := fmt.Sprintf("%d", msg.ID)
+	hashstr := hostport + ":" + reqstr
+	sha256hash := sha256.New()
+	sha256hash.Write([]byte(hashstr))
+
+	/* constructs the total bytes array for consecutive write */
+	toWrite := make([]byte, 0, writeLength)
+	toWrite = append(toWrite, lenBuf.Bytes()...)
+	toWrite = append(toWrite, cksmbuf.Bytes()...)
+	toWrite = append(toWrite, sha256hash.Sum(nil)...)
+	toWrite = append(toWrite, msg.Payload...)
+
 	return toWrite, nil
 }
 
-func (blog *BLog) Commit(hwMark int64){
+func (blog *BLog) Commit(hwMark int64) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	blog.hwMark = hwMark
@@ -212,7 +212,7 @@ func (blog *BLog) Flush() error {
 	return err
 }
 
-func (blog *BLog) HighWaterMark() int64{
+func (blog *BLog) HighWaterMark() int64 {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	return blog.hwMark
