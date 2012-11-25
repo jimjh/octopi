@@ -18,6 +18,7 @@ type Broker struct {
 	lock          sync.Mutex                        //  lock to manage broker access
 }
 
+// SubscriptionSet implemented as a map from *Subscription to true.
 type SubscriptionSet map[*Subscription]bool
 
 func NewBroker(rbi protocol.RegBrokerInit, regconn *websocket.Conn) (*Broker, error) {

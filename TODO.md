@@ -8,18 +8,22 @@
 + Add back-off and reconnect
 - Sequence guarantee and rewind
 - Subscribe and wait for ACK
-- Implement redirect
 - Unit Tests
+- Implement redirect
 
 ## Producer
 + Publish messages
 + Sequence Numbers
 + Failures and error handling
 + Retry and reconnection
-- Implement redirect
 - Send and wait for ack
 - Unit Tests
+- Implement redirect
 
 ## Broker
-- CRC32 checksum verification in broker
 + Delete closed subscriptions
+- CRC32 checksum verification in broker
+- Robust logging and recovery
+- Ack producer requests
+- Ack consumer requests
+- Leader and follower
