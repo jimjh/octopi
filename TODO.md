@@ -7,8 +7,8 @@
 + Implement close
 + Failures and error handling
 + Add back-off and reconnect
++ Subscribe and wait for ACK
 - Sequence guarantee and rewind
-- Subscribe and wait for ACK
 - Unit Tests
 - Implement redirect
 

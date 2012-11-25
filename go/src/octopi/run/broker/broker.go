@@ -58,38 +58,47 @@ func producerHandler(ws *websocket.Conn) {
 }
 
 // consumerHandler handles incoming subscribe requests. Consumers may send
-// multiple subscribe requests on the same persistent connection. The function
-// exits when an `io.EOF` is received on the connection.
-func consumerHandler(ws *websocket.Conn) {
+// multiple subscribe requests on the same persistent connection. However,
+// consumers may only subscribe to the same topic once. The function exits when
+// an `io.EOF` is received on the connection.
+func consumerHandler(conn *websocket.Conn) {
 
-	defer ws.Close()
-	subscriptions := make(map[*brokerimpl.Subscription]string)
+	defer conn.Close()
+	subscriptions := make(map[string]*brokerimpl.Subscription)
 
 	for {
 
 		var request protocol.SubscribeRequest
 
-		err := websocket.JSON.Receive(ws, &request)
+		err := websocket.JSON.Receive(conn, &request)
 		if err == io.EOF { // graceful shutdown
 			break
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
+			continue
+		}
+
+		if _, exists := subscriptions[request.Topic]; exists {
+			log.Warn("Ignoring duplicate subscribe request from %v.", conn.RemoteAddr())
 			continue
 		}
 
 		// TODO: catchup/rewind
-		log.Info("Received subscribe request from %v.", ws.RemoteAddr())
-		subscription := broker.Subscribe(ws, request.Topic)
-		subscriptions[subscription] = request.Topic
+		log.Info("Received subscribe request from %v.", conn.RemoteAddr())
+		subscription := broker.Subscribe(conn, request.Topic)
+		subscriptions[request.Topic] = subscription
+
+		ack := protocol.Ack{Status: protocol.SUCCESS}
+		websocket.JSON.Send(conn, &ack)
 
 	}
 
-	log.Info("Closed consumer connection from %v.", ws.RemoteAddr())
+	log.Info("Closed consumer connection from %v.", conn.RemoteAddr())
 
 	// delete all subscriptions
-	for subscription, topic := range subscriptions {
+	for topic, subscription := range subscriptions {
 		broker.Unsubscribe(topic, subscription)
 	}
 
