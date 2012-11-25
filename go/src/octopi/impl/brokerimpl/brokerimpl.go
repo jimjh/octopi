@@ -109,16 +109,13 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 		b.insyncFollowers[topic] = followerset
 	}
 
-	bLog = bLog // FIXME: Temporary placeholder
+	bLog = bLog //FIXME: temporary placeholder
 
-	// b.FollowBroadcast(msg)
-
-	// TODO: message duplication check and follower synchronization
-	// XXX: how to check for duplication in logs? need to loop through?
-	// XXX: just need to check the last entry
-	// TODO: this is not a good idea (should be async.)
-	// XXX: before writing to file, make sure to replace ID with offset and check
-	// for duplicates.
+	// TODO: write to leader log
+	b.broadcastWrites(msg)
+	// TODO: wait for ACKs
+	b.broadcastCommits(msg)
+	// TODO: reply to producer
 
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers
@@ -133,22 +130,13 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 }
 
-/*func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg *protocol.Message) {
-	err := websocket.JSON.Send(ws.FollowWS, msg)
-	if nil != err {
-		b.lock.Lock()
-		defer b.lock.Unlock()
-		delete(b.brokerConns, hostport)
-		ws.FollowWS.Close()
-		ws.Block <- nil
-	}
-}*/
+func (b *Broker) broadcastWrites(msg *protocol.Message){
+	//TODO: implement this method
+}
 
-/*func (b *Broker) CacheFollower(hostport string, fconn *protocol.FollowWSConn) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.brokerConns[hostport] = fconn
-}*/
+func (b *Broker) broadcastCommits(msg *protocol.Message){
+	//TODO: implement this method
+}
 
 func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]int64) {
 
@@ -180,7 +168,14 @@ func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 	if !exists {
 		return
 	}
-	b.sendSyncRequest(conn, bLog.HighWaterMark(), ack.Offset, ack.Topic, bLog)
+	_, exists = b.insyncFollowers[topic][conn]
+	if !exists{
+		// ACK from out of sync follower
+		b.sendSyncRequest(conn, bLog.HighWaterMark(), ack.Offset, ack.Topic, bLog)
+	} else{
+		// ACK of write from in-sync follower
+		// TODO: send message back to producer
+	}
 }
 
 func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {

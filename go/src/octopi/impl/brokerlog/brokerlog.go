@@ -24,6 +24,7 @@ type BLogEntry struct {
 type BLog struct {
 	logFile *os.File // file
 	hwMark  int64    // end of the file log commit
+	lastId  int64
 	lock    sync.Mutex
 }
 
@@ -40,8 +41,14 @@ func OpenLog(path string) (*BLog, error) {
 
 	blog.hwMark, err = blog.logFile.Seek(0, os.SEEK_END)
 
+	blog.lastId = -1
+
 	return blog, err
 
+}
+
+func (blog *BLog) LastId() int64{
+	return blog.lastId
 }
 
 // Read reads from offset ID, useful for recovery
@@ -124,10 +131,12 @@ func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
-	_, err := blog.logFile.Seek(0, os.SEEK_END)
+	id, err := blog.logFile.Seek(0, os.SEEK_END)
 	if nil != err {
 		return -1, err
 	}
+
+	blog.lastId = id
 
 	return blog.logFile.Write(b)
 }
@@ -135,6 +144,8 @@ func (blog *BLog) WriteBytes(b []byte) (int, error) {
 func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
+
+	blog.lastId = pos
 
 	return blog.logFile.WriteAt(b, pos)
 }
@@ -149,7 +160,8 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
-	blog.logFile.Seek(0, os.SEEK_END)
+	blog.lastId, _ = blog.logFile.Seek(0, os.SEEK_END)
+
 	return blog.logFile.Write(toWrite)
 }
 
@@ -163,6 +175,8 @@ func (blog *BLog) WriteAt(hostport string, msg protocol.Message, pos int64) (int
 
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
+
+	blog.lastId = pos
 
 	return blog.logFile.WriteAt(toWrite, pos)
 }

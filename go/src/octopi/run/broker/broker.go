@@ -130,7 +130,6 @@ ack)
 		broker.SyncFollower(conn, ack)
 	}
 
-	
 	broker.DeleteFollower(conn)
 }
 
