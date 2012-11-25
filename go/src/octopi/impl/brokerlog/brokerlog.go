@@ -123,54 +123,79 @@ func (blog *BLog) LatestOffset() (int64, error) {
 func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
+
 	_, err := blog.logFile.Seek(0, os.SEEK_END)
 	if nil != err {
-		return 0, err
+		return -1, err
 	}
 
 	return blog.logFile.Write(b)
 }
 
-/* writes formatted messages. for general usage */
-func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
-
-	/* construct int64 ID of message */
-	_, err := blog.logFile.Seek(0, os.SEEK_END)
-
-	if nil != err{
-		return -1, err
-	}
-
-	/* construct length field */
-	var writeLength uint32
-	writeLength = 4 + 4 + 32 + uint32(len(msg.Payload))
-	lenBuf := new(bytes.Buffer)
-	err = binary.Write(lenBuf, binary.LittleEndian, writeLength)
+func (blog *BLog) WriteBytesAt(b []byte, pos int64) (int, error){
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
 	
-	if nil != err{
+	return blog.logFile.WriteAt(b, pos)
+}
+
+//writes formatted message to the end of file
+func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error){
+	toWrite, err := generateWrite(hostport, msg)
+	if nil!=err{
 		return -1, err
 	}
-
-	cksmbuf := new(bytes.Buffer)
-	binary.Write(cksmbuf, binary.LittleEndian, msg.Checksum)
-
-	/* construct request_id field */
-	reqstr := fmt.Sprintf("%d", msg.ID)
-	hashstr := hostport + ":" + reqstr
-	sha256hash := sha256.New()
-	sha256hash.Write([]byte(hashstr))
-
-	/* constructs the total bytes array for consecutive write */
-	toWrite := make([]byte, 0, writeLength)
-	toWrite = append(toWrite, lenBuf.Bytes()...)
-	toWrite = append(toWrite, cksmbuf.Bytes()...)
-	toWrite = append(toWrite, sha256hash.Sum(nil)...)
-	toWrite = append(toWrite, msg.Payload...)
 
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
+	blog.logFile.Seek(0, os.SEEK_END)
 	return blog.logFile.Write(toWrite)
+}
+
+/* writes formatted messages to a specified pos in file. for general usage */
+func (blog *BLog) WriteAt(hostport string, msg protocol.Message, pos int64) (int, error) {
+	toWrite, err := generateWrite(hostport, msg)
+
+	if nil!=err{
+		return -1, err
+	}
+
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
+
+	return blog.logFile.WriteAt(toWrite, pos)
+}
+
+// generates the byte representation of hostport and message input
+func generateWrite(hostport string, msg protocol.Message) ([]byte, error) {
+        /* construct length field */
+        var writeLength uint32
+        writeLength = 4 + 4 + 32 + uint32(len(msg.Payload))
+        lenBuf := new(bytes.Buffer)
+        err := binary.Write(lenBuf, binary.LittleEndian, writeLength)
+        
+        if nil != err{
+                return nil, err
+        }
+
+        cksmbuf := new(bytes.Buffer)
+        binary.Write(cksmbuf, binary.LittleEndian, msg.Checksum)
+
+        /* construct request_id field */
+        reqstr := fmt.Sprintf("%d", msg.ID)
+        hashstr := hostport + ":" + reqstr
+        sha256hash := sha256.New()
+        sha256hash.Write([]byte(hashstr))
+
+        /* constructs the total bytes array for consecutive write */
+        toWrite := make([]byte, 0, writeLength)
+        toWrite = append(toWrite, lenBuf.Bytes()...)
+        toWrite = append(toWrite, cksmbuf.Bytes()...)
+        toWrite = append(toWrite, sha256hash.Sum(nil)...)
+        toWrite = append(toWrite, msg.Payload...)
+	
+	return toWrite, nil
 }
 
 func (blog *BLog) Commit(hwMark int64){
