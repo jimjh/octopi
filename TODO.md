@@ -29,3 +29,7 @@
 - Ack consumer requests
 - Leader and follower
 - Implement redirects
+
+
+- documentation
+- demo app

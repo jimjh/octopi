@@ -1,19 +1,32 @@
+// Package broker is an executable that launches a single broker instance.
+// Every process may have at most one broker.
+//
+// Usage:
+//    $> bin/broker --conf=conf.json
+//
+// Configuration Options:
+//    port:     port number of broker; it will listen for connections on this port
+//    register: host:port of register/leader for this broker to register
 package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"flag"
 	"io"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
+	"octopi/util/config"
 	"octopi/util/log"
+	"strconv"
 )
 
-// Global broker object - one broker per process.
+// Global broker object - at most one broker per process.
 var broker *brokerimpl.Broker
 
 // producerHandler handles incoming produce requests. Producers may send
-// multiple produce requests on the same persistent connection.
+// multiple produce requests on the same persistent connection. The function
+// exits when an `io.EOF` is received on the connection.
 func producerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
@@ -44,7 +57,9 @@ func producerHandler(ws *websocket.Conn) {
 
 }
 
-// consumerHandler handles incoming consume requests.
+// consumerHandler handles incoming subscribe requests. Consumers may send
+// multiple subscribe requests on the same persistent connection. The function
+// exits when an `io.EOF` is received on the connection.
 func consumerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
@@ -80,8 +95,8 @@ func consumerHandler(ws *websocket.Conn) {
 
 }
 
-// brokerHandler handles incoming broker requests.
-func brokerHandler(ws *websocket.Conn) {
+// followerHandler handles incoming follow requests.
+func followerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
 
@@ -93,10 +108,11 @@ func brokerHandler(ws *websocket.Conn) {
 			break
 		}
 
+		log.Info("Received follow request from %v.", ws.RemoteAddr())
 		conn := &protocol.Follower{ws, make(chan interface{})}
 		broker.RegisterFollower(conn, request.HostPort, request.Offsets)
 
-		// TODO: deal with acks
+		// TODO: deal with sync acks
 
 	}
 
@@ -105,23 +121,48 @@ func brokerHandler(ws *websocket.Conn) {
 }
 
 // main starts a broker instance.
+// Configuration Options:
+//  - port number
+//  - host:port of register/leader
 func main() {
 
 	log.SetPrefix("broker: ")
 	log.SetVerbose(log.DEBUG)
 
-	// TODO: port number should be configurable
-	// TODO: add command line arguments for register
+	defer func() {
+		if r := recover(); nil != r {
+			log.Error("%v", r)
+		}
+	}()
 
-	broker = brokerimpl.New(12345, "localhost:12345")
+	// parse command line args
+	var configFile = flag.String("conf", "conf.json", "configuration file")
+	flag.Parse()
 
+	// init configuration
+	config, err := config.Init(*configFile)
+	checkError(err)
+
+	log.Info("Initializing broker with options from %s.", *configFile)
+	log.Info("Options read were: %v", config.Options)
+
+	// parse port number
+	port, err := strconv.Atoi(config.Get("port", "5050"))
+	checkError(err)
+
+	broker = brokerimpl.New(port, config.Get("register"))
+	listenHttp(port)
+
+}
+
+// listenHttp starts a http server at the given port and listens for incoming
+// websocket message.
+func listenHttp(port int) {
 	http.Handle("/"+protocol.PUBLISH, websocket.Handler(producerHandler))
-	http.Handle("/"+protocol.FOLLOW, websocket.Handler(brokerHandler))
+	http.Handle("/"+protocol.FOLLOW, websocket.Handler(followerHandler))
 	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
-	http.ListenAndServe(":12345", nil)
-
-	log.Info("Listening on 12345 ...")
-
+	http.ListenAndServe(":"+strconv.Itoa(port), nil)
+	log.Info("Listening on %d ...", port)
 }
 
 // checkError logs a fatal error message and exits if `err` is not nil.
