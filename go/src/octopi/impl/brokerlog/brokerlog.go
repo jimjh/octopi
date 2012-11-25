@@ -1,24 +1,21 @@
 package brokerlog
 
 // XXX: add header comment
-// XXX: please run GoFormat
-// XXX: why in util? I would prefer it to be in impl, then rename BLog* to just Log*.
-// XXX: util is more for general utilities that can be reused in other projects.
 
 import (
+	"fmt"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"octopi/api/protocol"
 	"os"
-	"strconv"
 	"sync"
 )
 
 type BLogEntry struct {
 	ID        int64
-	Length    int    // XXX: should be uint32 to fix value at 4 bytes
+	Length    uint32 
 	Checksum  uint32 // crc32 checksum of payload
 	RequestId []byte // sha256 of producer addr + seq num; used to prevent dups
 	Payload   []byte // contents
@@ -26,8 +23,7 @@ type BLogEntry struct {
 
 type BLog struct {
 	logFile *os.File // file
-	hwMark  int64    // end of the file log commit. i.e. message ID of the to-be-written-to persistent storage message.
-	tail    int64    // messageID of the last written message
+	hwMark  int64    // end of the file log commit
 	lock    sync.Mutex
 }
 
@@ -42,78 +38,67 @@ func OpenLog(path string) (*BLog, error) {
 
 	blog := &BLog{logFile: file}
 
-	blog.hwMark, err = blog.logFile.Seek(0, os.SEEK_END)
-	blog.tail = -1 // since have not written yet
+	_, err = blog.logFile.Seek(0, os.SEEK_END)
 
 	return blog, err
 
 }
 
-func (blog *BLog) NextMsgId(id int64) (int64, error) {
-	blog.lock.Lock()
-	defer blog.lock.Unlock()
-	msgLenBytes := make([]byte, 4)
-	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id)
-	if bytesRead != 4 || nil != err {
-		return -1, errors.New("Next message search failed")
-	}
-	msgLen64, _ := binary.Varint(msgLenBytes)
-	if msgLen64 <= 0 {
-		return -1, errors.New("Log format corrupted")
-	}
-	return id + msgLen64, nil
-}
-
+// TODO: return the messageID of the next message
 // Read reads from offset ID, useful for recovery
-func (blog *BLog) Read(id int64) ([]byte, error) {
+func (blog *BLog) Read(id int64) ([]byte, int64, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
+	// TODO: change to uint32
 	// XXX: should be fixed at uint32
-	var msgLen int
 	msgLenBytes := make([]byte, 4)                         //4 bytes for message length
 	bytesRead, err := blog.logFile.ReadAt(msgLenBytes, id) //offset for ID
 	if bytesRead != 4 || nil != err {
-		return nil, errors.New("Did not read in correctly")
+		return nil, -1, errors.New("Did not read in correctly")
 	}
 
-	// XXX: use binary.Write and binary.Read instead?
-	msgLen64, _ := binary.Varint(msgLenBytes)
-	msgLen = int(msgLen64)
+	var msgLen uint32
+	msgLenBuf := bytes.NewBuffer(msgLenBytes)
+	err = binary.Read(msgLenBuf, binary.LittleEndian, &msgLen)
 
-	if msgLen <= 0 {
-		return nil, errors.New("Log format corrupted")
+	if err!=nil {
+		return nil, -1, err
 	}
+
 	read := make([]byte, msgLen)
 	bytesRead, err = blog.logFile.ReadAt(read, id)
-	if bytesRead != msgLen {
-		return nil, err
-	}
-	if bytesRead != msgLen {
-		return nil, errors.New("Did not read in correctly")
+	
+	if bytesRead != int(msgLen) {
+		return nil, -1, errors.New("Did not read in correctly")
 	}
 
-	return read, nil
+	return read, id+int64(msgLen), nil
 
 }
 
 /* reads an actual entry from the broker log */
-func (blog *BLog) ReadEntry(id int64) (*BLogEntry, error) {
-	b, err := blog.Read(id)
+func (blog *BLog) ReadEntry(id int64) (*BLogEntry, int64, error) {
+	b, next, err := blog.Read(id)
 	if nil != err {
-		return nil, err
+		return nil, -1, err
 	}
 
-	var msgLen int
-	msgLen64, _ := binary.Varint(b[:4])
-	msgLen = int(msgLen64)
+	var msgLen uint32
+	msgLenBuf := bytes.NewBuffer(b[:4])
+	err = binary.Read(msgLenBuf, binary.LittleEndian, &msgLen)
+
 	if nil != err {
-		return nil, err
+		return nil, -1, err
 	}
 
 	var cksm uint32
 	cksmBuf := bytes.NewBuffer(b[4:8])
 	err = binary.Read(cksmBuf, binary.LittleEndian, &cksm)
+
+	if nil != err {
+		return nil, -1, err
+	}
 
 	hash := b[8:40]
 
@@ -127,7 +112,7 @@ func (blog *BLog) ReadEntry(id int64) (*BLogEntry, error) {
 		Payload:   payload,
 	}
 
-	return ble, nil
+	return ble, next, nil
 }
 
 /* get the latest offset of the file. i.e. the latest messageID */
@@ -141,11 +126,10 @@ func (blog *BLog) LatestOffset() (int64, error) {
 func (blog *BLog) WriteBytes(b []byte) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
-	messageID, err := blog.logFile.Seek(0, os.SEEK_END)
+	_, err := blog.logFile.Seek(0, os.SEEK_END)
 	if nil != err {
 		return 0, err
 	}
-	blog.tail = messageID
 
 	return blog.logFile.Write(b)
 }
@@ -154,28 +138,34 @@ func (blog *BLog) WriteBytes(b []byte) (int, error) {
 func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 
 	/* construct int64 ID of message */
-	messageID, _ := blog.logFile.Seek(0, os.SEEK_END)
+	_, err := blog.logFile.Seek(0, os.SEEK_END)
+
+	if nil != err{
+		return -1, err
+	}
 
 	/* construct length field */
-	var writeLength int
-	writeLength = 4 + 4 + 32 + len(msg.Payload)
-	lenbuf := make([]byte, 4)
-	binary.PutVarint(lenbuf, int64(writeLength))
+	var writeLength uint32
+	writeLength = 4 + 4 + 32 + uint32(len(msg.Payload))
+	lenBuf := new(bytes.Buffer)
+	err = binary.Write(lenBuf, binary.LittleEndian, writeLength)
+	
+	if nil != err{
+		return -1, err
+	}
 
 	cksmbuf := new(bytes.Buffer)
 	binary.Write(cksmbuf, binary.LittleEndian, msg.Checksum)
 
 	/* construct request_id field */
-	// TODO: use uint32 later
-	req_id := int(msg.ID)
-	reqstr := strconv.Itoa(req_id)
+	reqstr := fmt.Sprintf("%d", msg.ID)
 	hashstr := hostport + ":" + reqstr
 	sha256hash := sha256.New()
 	sha256hash.Write([]byte(hashstr))
 
 	/* constructs the total bytes array for consecutive write */
 	toWrite := make([]byte, 0, writeLength)
-	toWrite = append(toWrite, lenbuf...)
+	toWrite = append(toWrite, lenBuf.Bytes()...)
 	toWrite = append(toWrite, cksmbuf.Bytes()...)
 	toWrite = append(toWrite, sha256hash.Sum(nil)...)
 	toWrite = append(toWrite, msg.Payload...)
@@ -183,26 +173,27 @@ func (blog *BLog) Write(hostport string, msg protocol.Message) (int, error) {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 
-	blog.tail = messageID
-
 	return blog.logFile.Write(toWrite)
 }
 
-func (blog *BLog) Tail() int64 {
-	return blog.tail
+func (blog *BLog) Commit(hwMark int64){
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
+	blog.hwMark = hwMark
 }
 
-/* commits to permanent storage */
-func (blog *BLog) Commit() error {
+/* flushes to permanent storage */
+func (blog *BLog) Flush() error {
 	blog.lock.Lock()
 	defer blog.lock.Unlock()
 	err := blog.logFile.Sync()
-	// XXX: not sure abt this.
-	if nil != err {
-		return err
-	}
-	blog.hwMark, err = blog.logFile.Seek(0, os.SEEK_CUR)
 	return err
+}
+
+func (blog *BLog) HighWaterMark() int64{
+	blog.lock.Lock()
+	defer blog.lock.Unlock()
+	return blog.hwMark
 }
 
 /* closes file */
