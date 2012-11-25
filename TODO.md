@@ -4,8 +4,8 @@
 
 ## Consumer
 + Implement close
-- Failures and error handling
-- Add back-off and reconnect
++ Failures and error handling
++ Add back-off and reconnect
 - Sequence guarantee and rewind
 - Subscribe and wait for ACK
 - Implement redirect

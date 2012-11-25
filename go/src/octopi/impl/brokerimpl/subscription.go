@@ -31,7 +31,6 @@ func (s *Subscription) Serve() error {
 		}
 	}
 
-	// TODO: need to delete (from broker) closed subscriptions
 	log.Debug("Stopped serving subscription %p.", s)
 	return err
 

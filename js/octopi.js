@@ -6,7 +6,7 @@
 //        console.log(msg);
 //      });
 //
-/*global WebSocket crc32 base64*/
+/*global window crc32 base64 _*/
 
 // ## Global octopi object
 // All octopi functions will be enclosed in this namespace.
@@ -24,6 +24,9 @@ var octopi = octopi || {};
 
     // Node type identifier.
     CONSUMER: 2,
+
+    // Max number of milliseconds between retries.
+    MAX_RETRY_INTERVAL: 2000,
 
     // Creates a new subscription request for the given topic.
     subscription: function(topic) {
@@ -45,8 +48,11 @@ var octopi = octopi || {};
   };
 
   // ## Consumer
+  // `c.endpoint`: the endpoint this consumer will send requests to.
+  // `c.subscriptions`: map from topic to websocket connection.
   var Consumer = function(host) {
-    if (!host) throw new Error('Invalid host. It should look like example.com:123.');
+    if (_.isEmpty(host) || !_.isString(host))
+      throw new TypeError('Invalid host. It should look like example.com:123.');
     this.endpoint = 'ws://' + host + '/' + protocol.PATH;
     this.subscriptions = {};
   };
@@ -60,35 +66,53 @@ var octopi = octopi || {};
   //} TODO: how to let application know if subscription failed?
   Consumer.prototype.subscribe = function(topic, callback) {
 
-    if (typeof topic === 'undefined') throw new Error('Invalid topic.');
-    if (!callback) throw new Error('Invalid callback.');
+    if (_.isEmpty(topic) || !_.isString(topic))
+      throw new TypeError('Invalid topic. Should be a non-empty string.');
+    if (!_.isFunction(callback))
+      throw new TypeError('Invalid callback. Should be a function.');
+
     if (topic in this.subscriptions) return; // already subscribed
 
-    var conn = new WebSocket(this.endpoint);
-    this.subscriptions[topic] = conn;
+    var conn = this.subscriptions[topic] = new window.WebSocket(this.endpoint);
 
     conn.onmessage = handle(callback);
     conn.onopen = function() {
-      // TODO: wait for ACK
-      conn.send(protocol.subscription(topic));
+      // TODO: wait for ACK; timeout
       // TODO: close connection on failure
-      // TODO: detect broker failure
+      conn.send(protocol.subscription(topic));
     };
 
-    conn.onclose = function() {
-      console.log('closed!');
-    };
+    conn.onclose = _.bind(onclose, this, conn, topic, callback);
 
   };
 
   // Unsubscribes from the given topic by closing the websocket connection.
-  // This is a no-op is a subscription does not already exist for the topic.
+  // This is a no-op if a subscription does not already exist for the topic.
   Consumer.prototype.unsubscribe = function(topic) {
-    if (topic in this.subscriptions) {
-      var conn = this.subscriptions[topic];
-      delete this.subscriptions[topic];
-      conn.close();
-    }
+
+    if (_.isEmpty(topic) || !_.isString(topic))
+      throw new TypeError('Invalid topic. Should be a non-empty string.');
+    if (!(topic in this.subscriptions)) return;
+
+    var conn = this.subscriptions[topic];
+    delete this.subscriptions[topic];
+    conn.close();
+
+  };
+
+  // Resubscribes to the given topic. This is a private method. Use `subscribe`
+  // and `unsubscribe` instead.
+  Consumer.prototype.resubscribe = function(topic, callback) {
+
+    var that = this;
+    var wait = _.random(protocol.MAX_RETRY_INTERVAL);
+
+    // TODO: use last offset
+    window.setTimeout(function() {
+      delete that.subscriptions[topic];
+      that.subscribe(topic, callback);
+    }, wait);
+
   };
 
   // Returns a function that handles incoming websocket messages and passes
@@ -107,6 +131,18 @@ var octopi = octopi || {};
       // TODO: sequence guarantees, and rewind on checksum failure
 
     };
+  };
+
+  // Invoked when a websocket connection is closed.
+  var onclose = function(conn, topic, cb) {
+
+    // do nothing if intentional close, or different connection
+    if (!(topic in this.subscriptions && this.subscriptions[topic] === conn))
+      return;
+
+    // back off and reconnect
+    this.resubscribe(topic, cb);
+
   };
 
   o.protocol = protocol;
