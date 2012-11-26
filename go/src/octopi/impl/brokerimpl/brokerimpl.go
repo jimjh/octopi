@@ -45,6 +45,8 @@ func New(port int, master string) *Broker {
 		leadChan:        make(chan int),
 	}
 
+	// TODO: initialize log files based on log directory
+
 	go b.register(master)
 	return b
 
@@ -64,7 +66,11 @@ func (b *Broker) register(hostport string) {
 
 		leader, err = websocket.Dial(endpoint, "", origin)
 		if nil == err {
-			// TODO: send follow request, wait for ACK
+			offsets := make(map[string]int64)
+			for topic, log := range b.logs {
+				offsets[topic] = log.HighWaterMark()
+			}
+			websocket.JSON.Send(leader, protocol.FollowRequest{offsets})
 			break
 		}
 
@@ -101,7 +107,7 @@ func (b *Broker) HandleMessages() {
 		var sreq protocol.SyncRequest
 		err := websocket.JSON.Receive(b.leader, &sreq)
 		if err == io.EOF {
-			// TODO: Notify register of leader failure
+			// TODO: Leader failure
 		}
 
 		currtopic := sreq.Topic
@@ -165,10 +171,9 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 	bLog = bLog //FIXME: temporary placeholder
 
-	b.broadcastWrites(msg)
-	// TODO: wait for ACKs
-	b.broadcastCommits(msg)
-	// TODO: reply to producer
+	// TODO: wait for followerHandler to broadcast to followers and ACK
+	// TODO: broadcast commits if enough ACK
+	// TODO: reply to producer after commit
 
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers
@@ -181,10 +186,6 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 	return nil
 
-}
-
-func (b *Broker) broadcastWrites(msg *protocol.Message) {
-	//TODO: implement this method
 }
 
 func (b *Broker) broadcastCommits(msg *protocol.Message) {
@@ -227,7 +228,7 @@ func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 		b.sendSyncRequest(conn, bLog.HighWaterMark(), ack.Offset, ack.Topic, bLog)
 	} else {
 		// ACK of write from in-sync follower
-		// TODO: send message back to producer
+		// TODO: record ACK and determine if send commit
 	}
 }
 

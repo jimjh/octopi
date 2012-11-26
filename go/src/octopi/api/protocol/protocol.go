@@ -37,7 +37,6 @@ type Follower struct {
 
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
-	HostPort string           // host:port of follower
 	Offsets  map[string]int64 // high watermarks of each topic log
 }
 
