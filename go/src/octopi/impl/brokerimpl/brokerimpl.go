@@ -152,7 +152,6 @@ func (b *Broker) HandleMessages() {
 func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 	b.lock.Lock()
-	defer b.lock.Unlock()
 
 	bLog, exists := b.logs[topic]
 	if !exists {
@@ -160,6 +159,7 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 		tmpLog, err := brokerlog.OpenLog(topic)
 		if nil != err {
 			//TODO: cannot open log!
+			b.lock.Unlock()
 			return err
 		} else {
 			b.logs[topic] = tmpLog
@@ -171,9 +171,15 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 	bLog = bLog //FIXME: temporary placeholder
 
+	b.lock.Unlock()
+
+	// TODO: use conidition variable to wait for insyncFollower ACK
 	// TODO: wait for followerHandler to broadcast to followers and ACK
 	// TODO: broadcast commits if enough ACK
 	// TODO: reply to producer after commit
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
 
 	subscriptions, exists := b.subscriptions[topic]
 	if !exists { // no subscribers

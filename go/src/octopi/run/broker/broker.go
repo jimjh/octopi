@@ -132,8 +132,7 @@ func followerHandler(ws *websocket.Conn) {
 	// deal with sync
 	for{
 		var ack protocol.SyncACK
-		err := websocket.JSON.Receive(ws, &
-ack)
+		err := websocket.JSON.Receive(ws, &ack)
 		if err == io.EOF{
 			break
 		}

@@ -25,11 +25,15 @@
 + Delete closed subscriptions
 - CRC32 checksum verification in broker
 - Robust logging and recovery
+- Switch to cond vars for Produce method to wait for enough FollowerACKs
+- Open Log files
 - Ack producer requests
 - Ack consumer requests
 - Leader and follower
 - Implement redirects
 
+##JSON Config
+- Directory for log files with topics as file names
 
 - documentation
 - demo app
