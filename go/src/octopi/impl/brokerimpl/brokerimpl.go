@@ -84,7 +84,7 @@ func (b *Broker) FollowBroadcast(msg protocol.Message) {
 	}
 }
 
-func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.ProduceRequest) {
+func (b *Broker) sendToFollow(hostport string, ws *protocol.FollowWSConn, msg protocol.Message) {
 	err := websocket.JSON.Send(ws.FollowWS, msg)
 	if nil != err {
 		b.lock.Lock()
