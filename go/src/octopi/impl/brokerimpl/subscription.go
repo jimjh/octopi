@@ -2,14 +2,14 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"io"
+	"octopi/util/log"
 )
 
 // Subscriptions are used to store consumer connections; each subscription has
 // a go channel that relays messages to the consumer.
 type Subscription struct {
 	conn *websocket.Conn  // consumer websocket connection
-	send chan interface{} // go channel for relaying messages
+	send chan interface{} // for relaying messages to clients
 }
 
 // NewSubscription creates a new subscription.
@@ -25,15 +25,13 @@ func (s *Subscription) Serve() error {
 
 	var err error
 	for message := range s.send {
-		if err = websocket.JSON.Send(s.conn, message); nil != err {
+		err = websocket.JSON.Send(s.conn, message)
+		if nil != err {
 			break
 		}
 	}
 
-	if err == io.EOF {
-		return nil
-	}
-
+	log.Debug("Stopped serving subscription %p.", s)
 	return err
 
 }

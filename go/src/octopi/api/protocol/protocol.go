@@ -5,88 +5,79 @@ package protocol
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"container/list"
 )
 
-// Constants for contacting register.
-const (
-	BROKER = iota
-	PRODUCER
-	CONSUMER
-)
-
-// Constants for register to tell which role a broker is taking.
-const (
-	LEADER = iota
-	FOLLOWER
-)
-
-// Constants for URL endpoints
+// URL endpoints
 const (
 	PUBLISH   = "publish"
 	SUBSCRIBE = "subscribe"
 	FOLLOW    = "follow"
 )
 
-type FollowWSConn struct {
-	FollowWS *websocket.Conn
-	Block    chan interface{}
+// Status codes
+const (
+	SUCCESS  = 200 // successful operation
+	REDIRECT = 304 // redirect to attached host:port
+	FAILURE  = 400 // failed operation
+)
+
+// Sync types
+const (
+	UPDATE = iota
+	COMMIT
+)
+
+// Max number of milliseconds between retries.
+// XXX: move this to a configuration file
+var MAX_RETRY_INTERVAL = 2000
+
+type Follower struct {
+	Conn *websocket.Conn
 }
 
-// Used by brokers to contact register.
-type BrokerRegInit struct {
-	Source   int
-	HostPort string
+// FollowRequests are sent by brokers to registers/leaders.
+type FollowRequest struct {
+	HostPort string           // host:port of follower
+	Offsets  map[string]int64 // high watermarks of each topic log
 }
 
-/* used by register to assign brokers */
-type RegBrokerInit struct {
-	Role       int
-	LeadUrl    string     //url of the leader, for followers
-	LeadOrigin string     //origin of the leader, for followers
-	Brokers    *list.List //list of associated brokers used if new leader
+// FollowACKs are sent from leaders to followers in response to follow
+// requests.
+type FollowACK struct {
 }
 
-/* used by producers to contact register */
-type ProdRegInit struct {
-	Source int
+// SyncRequests are sent from leaders to followers asking them to write
+// to log.
+type SyncRequest struct {
+	Type    int
+	Topic   string
+	Message []byte //can be the highwatermark if used as commit
+}
+
+// SyncACKs are sent from followers to leaders after receiving sync messages
+// from leader.
+type SyncACK struct {
 	Topic  string
+	Offset int64 // offset of last message received
 }
 
-/* used by register to tell producer the lead broker */
-type RegProdInit struct {
-	LeadUrl    string
-	LeadOrigin string
+// ACKs are sent from registers/brokers to producers/consumers/brokers.
+type Ack struct {
+	Status   int    // status code
+	HostPort string // optional redirect
 }
 
-/* used by register to tell consumer its assigned broker */
-type RegConsInit struct {
-	BrokerUrl    string
-	BrokerOrigin string
-}
-
-/* used by followers to contact leader */
-type FollowLeadInit struct {
-	Source   int
-	HostPort string
-	// TODO: other fields to identify position of log
-}
-
-// PublishRequests are sent from producers to brokers when they want to start
-// sending messages under a particular topic.
-type PublishRequest struct {
-	Source int
-	Topic  string
-	// TODO: acknowledgments?
+// ProduceRequests are sent from producers to brokers when they want to send
+// messages under a specific topic.
+type ProduceRequest struct {
+	Topic   string
+	Message Message
 }
 
 // SubscribeRequests are sent from consumers to brokers when they want messages
 // from a particular topic.
 type SubscribeRequest struct {
-	Source int // XXX: should use inheritance here.
-	Topic  string
-	// TODO: other fields to identify position of wanted
-	// TODO: acknowledgements
+	Topic string
 }
 
 // Messages sent from producers to brokers; the enclosed payload is broadcast to

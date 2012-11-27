@@ -1,135 +1,182 @@
+// Package broker is an executable that launches a single broker instance.
+// Every process may have at most one broker.
+//
+// Usage:
+//    $> bin/broker --conf=conf.json
+//
+// Configuration Options:
+//    port:     port number of broker; it will listen for connections on this port
+//    register: host:port of register/leader for this broker to register
 package main
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"flag"
+	"io"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
+	"octopi/util/config"
 	"octopi/util/log"
+	"strconv"
 )
 
-// Global broker object - one broker per process
+// Global broker object - at most one broker per process.
 var broker *brokerimpl.Broker
 
-// registerBroker
-func registerBroker(regUrl string, regOrigin string, myHostPort string) *brokerimpl.Broker {
-
-	/* connect to register server */
-	regconn, err := websocket.Dial(regUrl, "", regOrigin)
-	/* fatal error if connection or messages failed */
-	checkError(err)
-
-	bri := protocol.BrokerRegInit{protocol.BROKER, myHostPort}
-	/* send relevant broker information to register */
-	err = websocket.JSON.Send(regconn, bri)
-	checkError(err)
-
-	/* receive register assignments */
-	var rbi protocol.RegBrokerInit
-	err = websocket.JSON.Receive(regconn, &rbi)
-	checkError(err)
-
-	/* create the broker based on JSON from register server */
-	b, err := brokerimpl.NewBroker(rbi, regconn)
-	checkError(err)
-
-	/* close the connection if broker not assigned as leader */
-	if b.Role() != protocol.LEADER {
-		regconn.Close()
-	}
-
-	return b
-}
-
-// producerHandler handles incoming produce requests.
+// producerHandler handles incoming produce requests. Producers may send
+// multiple produce requests on the same persistent connection. The function
+// exits when an `io.EOF` is received on the connection.
 func producerHandler(ws *websocket.Conn) {
 
-	var request protocol.PublishRequest
 	defer ws.Close()
 
-	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.Source != protocol.PRODUCER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		return
+	for {
+
+		var request protocol.ProduceRequest
+
+		err := websocket.JSON.Receive(ws, &request)
+		if err == io.EOF { // graceful shutdown
+			break
+		}
+
+		if nil != err {
+			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+			continue
+		}
+
+		log.Info("Received produce request from %v.", ws.RemoteAddr())
+		if err := broker.Publish(request.Topic, &request.Message); nil != err {
+			log.Error(err.Error())
+			continue
+		}
+
 	}
 
-	log.Info("Received publish request from %v.", ws.LocalAddr())
-	if err = broker.RegisterProducer(ws, &request); nil != err {
-		log.Error(err.Error())
+	log.Info("Closed producer connection from %v.", ws.RemoteAddr())
+
+}
+
+// consumerHandler handles incoming subscribe requests. Consumers may send
+// multiple subscribe requests on the same persistent connection. However,
+// consumers may only subscribe to the same topic once. The function exits when
+// an `io.EOF` is received on the connection.
+func consumerHandler(conn *websocket.Conn) {
+
+	defer conn.Close()
+	subscriptions := make(map[string]*brokerimpl.Subscription)
+
+	for {
+
+		var request protocol.SubscribeRequest
+
+		err := websocket.JSON.Receive(conn, &request)
+		if err == io.EOF { // graceful shutdown
+			break
+		}
+
+		if nil != err {
+			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
+			continue
+		}
+
+		if _, exists := subscriptions[request.Topic]; exists {
+			log.Warn("Ignoring duplicate subscribe request from %v.", conn.RemoteAddr())
+			continue
+		}
+
+		// TODO: catchup/rewind
+		log.Info("Received subscribe request from %v.", conn.RemoteAddr())
+		subscription := broker.Subscribe(conn, request.Topic)
+		subscriptions[request.Topic] = subscription
+
+		ack := protocol.Ack{Status: protocol.SUCCESS}
+		websocket.JSON.Send(conn, &ack)
+
+	}
+
+	log.Info("Closed consumer connection from %v.", conn.RemoteAddr())
+
+	// delete all subscriptions
+	for topic, subscription := range subscriptions {
+		broker.Unsubscribe(topic, subscription)
 	}
 
 }
 
-// consumerHandler handles incoming consume requests.
-func consumerHandler(ws *websocket.Conn) {
+// followerHandler handles incoming follow requests.
+func followerHandler(ws *websocket.Conn) {
 
-	var request protocol.SubscribeRequest
 	defer ws.Close()
 
+	var request protocol.FollowRequest
 	err := websocket.JSON.Receive(ws, &request)
-	if nil != err || request.Source != protocol.CONSUMER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
+	if err == io.EOF { // graceful shutdown
 		return
 	}
 
-	// TODO: catchup
-	log.Info("Received subscribe request from %v.", ws.LocalAddr())
-	if err = broker.RegisterConsumer(ws, &request); nil != err {
-		log.Error(err.Error())
+	log.Info("Received follow request from %v.", ws.RemoteAddr())
+	conn := &protocol.Follower{ws}
+	broker.RegisterFollower(conn, request.Offsets)
+
+	// deal with sync
+	for{
+		var ack protocol.SyncACK
+		err := websocket.JSON.Receive(ws, &
+ack)
+		if err == io.EOF{
+			break
+		}
+		broker.SyncFollower(conn, ack)
 	}
 
-}
-
-// brokerHandler handles incoming broker requests.
-func brokerHandler(ws *websocket.Conn) {
-
-	var fli protocol.FollowLeadInit
-
-	err := websocket.JSON.Receive(ws, &fli)
-
-	// close if message is corrupted or invalid
-	if nil != err || fli.Source != protocol.BROKER {
-		log.Warn("Ignoring invalid message from %v.", ws.LocalAddr())
-		ws.Close()
-		return
-	}
-
-	block := make(chan interface{})
-	conn := &protocol.FollowWSConn{ws, block}
-	broker.CacheFollower(fli.HostPort, conn)
-
-	/* blocks until disconnection detected */
-	<-block
+	
+	broker.DeleteFollower(conn)
 }
 
 // main starts a broker instance.
+// Configuration Options:
+//  - port number
+//  - host:port of register/leader
 func main() {
 
 	log.SetPrefix("broker: ")
-	log.SetVerbose(log.INFO)
+	log.SetVerbose(log.DEBUG)
 
-	if false {
-		// TODO: add command line arguments for register
-		broker = registerBroker("", "", "")
-	} else { // standalone mode
-		var err error
-		config := protocol.RegBrokerInit{Role: protocol.LEADER}
-		broker, err = brokerimpl.NewBroker(config, nil)
-		checkError(err)
-	}
-	// TODO: single-partition mode
+	defer func() {
+		if r := recover(); nil != r {
+			log.Error("%v", r)
+		}
+	}()
 
-	if broker.Role() == protocol.LEADER {
-		http.Handle("/"+protocol.PUBLISH, websocket.Handler(producerHandler))
-		http.Handle("/"+protocol.FOLLOW, websocket.Handler(brokerHandler))
-	}
+	// parse command line args
+	var configFile = flag.String("conf", "conf.json", "configuration file")
+	flag.Parse()
 
+	// init configuration
+	config, err := config.Init(*configFile)
+	checkError(err)
+
+	log.Info("Initializing broker with options from %s.", *configFile)
+	log.Info("Options read were: %v", config.Options)
+
+	// parse port number
+	port, err := strconv.Atoi(config.Get("port", "5050"))
+	checkError(err)
+
+	broker = brokerimpl.New(port, config.Get("register"))
+	listenHttp(port)
+
+}
+
+// listenHttp starts a http server at the given port and listens for incoming
+// websocket message.
+func listenHttp(port int) {
+	http.Handle("/"+protocol.PUBLISH, websocket.Handler(producerHandler))
+	http.Handle("/"+protocol.FOLLOW, websocket.Handler(followerHandler))
 	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
-	log.Info("Listening on 12345 ...")
-
-	http.ListenAndServe(":12345", nil)
-	// XXX: port number should be configurable
-
+	http.ListenAndServe(":"+strconv.Itoa(port), nil)
+	log.Info("Listening on %d ...", port)
 }
 
 // checkError logs a fatal error message and exits if `err` is not nil.
