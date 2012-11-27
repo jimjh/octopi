@@ -8,7 +8,10 @@
 + Failures and error handling
 + Add back-off and reconnect
 + Subscribe and wait for ACK
-- Sequence guarantee and rewind
+- Send offsets
+- Consume from offsets
+- Restart from offsets
+- Receive special characters
 - Unit Tests
 - Implement redirect
 

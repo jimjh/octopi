@@ -83,7 +83,8 @@ func (b *Broker) register(hostport string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.leader = leader
-	b.leadChan <- 0 //notify leader ready
+	// TODO: b.leadChan <- 0 // notify leader ready
+
 }
 
 // origin returns the host:port of this broker.

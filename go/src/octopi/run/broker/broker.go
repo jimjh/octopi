@@ -81,12 +81,14 @@ func consumerHandler(conn *websocket.Conn) {
 		}
 
 		if _, exists := subscriptions[request.Topic]; exists {
-			log.Warn("Ignoring duplicate subscribe request from %v.", conn.RemoteAddr())
+			log.Warn("Ignoring duplicate subscribe request from %v.",
+				conn.RemoteAddr())
 			continue
 		}
 
-		// TODO: catchup/rewind
-		log.Info("Received subscribe request from %v.", conn.RemoteAddr())
+		log.Info("Received subscribe request from %v with offset %d.",
+			conn.RemoteAddr(), request.Offset)
+
 		subscription := broker.Subscribe(conn, request.Topic)
 		subscriptions[request.Topic] = subscription
 
@@ -111,8 +113,8 @@ func followerHandler(ws *websocket.Conn) {
 
 	var request protocol.FollowRequest
 	err := websocket.JSON.Receive(ws, &request)
-	
-	// shut down if broken connection or wrong message format 
+
+	// shut down if broken connection or wrong message format
 	if err != nil {
 		return
 	}
@@ -121,19 +123,19 @@ func followerHandler(ws *websocket.Conn) {
 
 	//send followack
 	err = websocket.JSON.Send(ws, protocol.FollowACK{})
-	
+
 	//shut down if broken connection
-	if err == io.EOF{
+	if err == io.EOF {
 		return
 	}
 	conn := &protocol.Follower{ws}
 	broker.RegisterFollower(conn, request.Offsets)
 
 	// deal with sync
-	for{
+	for {
 		var ack protocol.SyncACK
 		err := websocket.JSON.Receive(ws, &ack)
-		if err == io.EOF{
+		if err == io.EOF {
 			break
 		}
 		broker.SyncFollower(conn, ack)
@@ -173,8 +175,7 @@ func main() {
 	checkError(err)
 
 	broker = brokerimpl.New(port, config.Get("register"))
-
-	go broker.HandleMessages()
+	// TODO: go broker.HandleMessages()
 
 	listenHttp(port)
 
