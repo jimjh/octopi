@@ -1,5 +1,10 @@
 go/bin/**
 go/pkg/**
 go/src/code.google.com/**
+go/src/bitbucket.org/**
+
+doc/**
 
 .DS_Store
+
+*.swp
