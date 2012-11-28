@@ -10,7 +10,6 @@ import (
 // a go channel that relays messages to the consumer.
 type Subscription struct {
 	broker *Broker
-	topic  string          // subscription topic
 	conn   *websocket.Conn // consumer websocket connection
 	log    *Log            // broker log
 	quit   chan interface{}
@@ -31,7 +30,6 @@ func NewSubscription(
 
 	return &Subscription{
 		broker: broker,
-		topic:  topic,
 		conn:   conn,
 		log:    log,
 		quit:   make(chan interface{}, 1),
