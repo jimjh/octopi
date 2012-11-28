@@ -2,12 +2,9 @@
 package brokerimpl
 
 import (
-	"bytes"
 	"code.google.com/p/go.net/websocket"
-	"encoding/binary"
 	"fmt"
 	"octopi/api/protocol"
-	"octopi/impl/brokerlog"
 	"octopi/util/config"
 	"octopi/util/log"
 	"os"
@@ -22,6 +19,7 @@ type Broker struct {
 	insyncFollowers map[string]FollowerSet      // list of followers that are in-sync with leader on a certain topic
 	upToDateTopics  map[string]bool             // set of up to date topics
 	subscriptions   map[string]SubscriptionSet  // map of topics to consumer connections
+	waiting         map[string]SubscriptionSet  // map of topics to waiting subscriptions
 	logs            map[string]*Log             // map of topics to logs
 	leader          *websocket.Conn             // connection to the leader
 	port            int                         // port number of this broker
@@ -31,6 +29,8 @@ type Broker struct {
 
 // SubscriptionSet implemented as a map from *Subscription to true.
 type SubscriptionSet map[*Subscription]bool
+
+// FollowerSet implemented as a map from *Follower to true.
 type FollowerSet map[*protocol.Follower]bool
 
 // New takes the host:port of the registry/leader and creates a new broker.
@@ -177,16 +177,15 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 		return err
 	}
 
-	// TODO: ping waiting consumers
-
-	/*subscriptions, exists := b.subscriptions[topic]
-	if !exists { // no subscribers
+	subscriptions, exists := b.waiting[topic]
+	if !exists { // no waiting subscribers
 		return nil
 	}
 
+	// ping waiting subscriptions
 	for subscription := range subscriptions {
 		subscription.send <- msg
-	}*/
+	}
 
 	return nil
 
@@ -232,7 +231,7 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 	}
 }*/
 
-func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {
+/*func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {
 	var sreq protocol.SyncRequest
 	sreq.Topic = topic
 	if myOffset <= followerOffset {
@@ -260,7 +259,7 @@ func (b *Broker) DeleteFollower(follower *protocol.Follower) {
 	for _, followers := range b.insyncFollowers {
 		delete(followers, follower)
 	}
-}
+}*/
 
 // Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
@@ -271,7 +270,7 @@ func (b *Broker) Subscribe(
 	offset int64) (*Subscription, error) {
 
 	// create new subscription
-	subscription, err := NewSubscription(b.config, conn, topic, offset)
+	subscription, err := NewSubscription(b, conn, topic, offset)
 	if nil != err {
 		return nil, err
 	}
@@ -306,5 +305,27 @@ func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 	close(subscription.send)
 	delete(subscriptions, subscription)
+
+}
+
+// wait checks if the subscription is really at the end of the log, and adds it
+// to the waiting set.
+func (b *Broker) wait(s *Subscription) bool {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	if !s.log.IsEOF() {
+		return false
+	}
+
+	subscriptions, exists := b.waiting[s.topic]
+	if !exists {
+		b.waiting[s.topic] = make(map[*Subscription]bool)
+		subscriptions = b.waiting[s.topic]
+	}
+
+	subscriptions[s] = true
+	return true
 
 }

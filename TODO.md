@@ -10,7 +10,7 @@
 + Subscribe and wait for ACK
 + Send offsets
 + Consume from offsets (file)
-- Consume from offsets (producer)
++ Consume from offsets (producer)
 - Restart from offsets (file)
 - Receive special characters
 - Fix unsubscribe

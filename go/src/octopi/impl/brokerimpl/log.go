@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"octopi/api/protocol"
 	"os"
 	"path"
@@ -104,6 +105,19 @@ func (log *Log) Append(producer string, message *protocol.Message) error {
 
 	entry := &LogEntry{*message, hasher.Sum(nil)}
 	return log.WriteNext(entry)
+
+}
+
+// IsEOF returns true iff the file pointer is at the end of the log.
+func (log *Log) IsEOF() bool {
+
+	checkpoint, _ := log.Seek(0, os.SEEK_CUR)
+	bail := func() { log.Seek(checkpoint, os.SEEK_SET) }
+	defer bail()
+
+	// try reading one byte
+	_, err := log.Seek(1, os.SEEK_CUR)
+	return io.EOF == err
 
 }
 
