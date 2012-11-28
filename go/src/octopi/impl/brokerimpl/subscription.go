@@ -38,65 +38,48 @@ func NewSubscription(
 }
 
 // Serve blocks until either the websocket connection is closed, or until a
-// message is received on the `quit` channel. This method may only be invoked
-// once; after it returns, the subscription is closed.
+// message is received on the `quit` channel. This method may be invoked at
+// most once; after it returns, the subscription is closed.
 func (s *Subscription) Serve() error {
 
-	read := make(chan *LogEntry)
-	go s.readFile(read)
+	defer s.log.Close()
+	defer log.Debug("Stopped serving subscription %p.", s)
 
-	var err error
 	for {
 		select {
 		case <-s.quit:
-			break
-		case entry := <-read:
-
-			if nil == entry {
-				break
+			return nil
+		default:
+			if err := s.next(); nil != err {
+				log.Error("Unable to read from log: ", err.Error())
+				return err
 			}
-
-			err = websocket.JSON.Send(s.conn, &entry.Message)
-			if nil != err {
-				log.Error("Unable to send message to consumer: ", err.Error())
-				break
-			}
-
 		}
 	}
 
-	log.Debug("Stopped serving subscription %p.", s)
-	s.log.Close()
-
-	return err
+	return nil
 
 }
 
-// readFile reads from the log file, sending log entries through the given
-// channel. When it reaches the end of the file, it registers a conditional
-// variable with the broker and waits for new messages.
-func (s *Subscription) readFile(read chan<- *LogEntry) {
+// next reads the next message from the associated log file. When it reaches
+// the end of the file, it waits (using a conditional variable) for more
+// messages from the broker. As a consequence of this design, a waiting
+// subscription cannot be closed until a new message is published, waking it
+// up. Returns nil or associated error.
+func (s *Subscription) next() error {
 
-	for {
+	entry, err := s.log.ReadNext()
 
-		entry, err := s.log.ReadNext()
-
-		switch err {
-
-		case nil:
-			read <- entry
-
-		case io.EOF: // wait for ping
-			log.Warn("Reached end of log.")
-			s.broker.wait(s)
-
-		default:
-			log.Error("Error reading from log: ", err.Error())
-			read <- nil // give up on corrupted log
-			break
-
-		}
-
+	switch err {
+	case nil:
+	case io.EOF: // wait for more
+		log.Debug("Reached end of log.")
+		s.broker.wait(s)
+		return nil
+	default: // abort
+		return err
 	}
+
+	return websocket.JSON.Send(s.conn, &entry.Message)
 
 }
