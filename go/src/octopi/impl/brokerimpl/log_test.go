@@ -3,22 +3,21 @@ package brokerimpl
 import (
 	"hash/crc32"
 	"octopi/api/protocol"
-	"octopi/util/config"
 	"os"
 	"testing"
 )
 
-// TestReadWrite triess reading ten entries from a log file.
+// TestReadWrite tries reading ten entries from a log file.
 func TestReadWrite(t *testing.T) {
 
-	options := &config.Config{make(map[string]string)}
-	options.Options["log_dir"] = os.TempDir()
-	config := &Config{*options}
-	log, err := OpenLog(config, "temp", 0)
+	test := NewTester()
+	log, err := OpenLog(test.config, "temp", 0)
 
 	if nil != err {
 		t.Fatal("Unable to open log file.")
 	}
+
+	defer os.Remove(log.Name())
 
 	var i byte
 	for i = 1; i <= 10; i++ {
@@ -32,7 +31,7 @@ func TestReadWrite(t *testing.T) {
 
 	log.Close()
 
-	log, err = OpenLog(config, "temp", 0)
+	log, err = OpenLog(test.config, "temp", 0)
 	if nil != err {
 		t.Fatal("Unable to open log file.")
 	}

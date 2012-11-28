@@ -9,6 +9,7 @@ import (
 	"octopi/util/config"
 	"octopi/util/log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -24,7 +25,6 @@ type Broker struct {
 	port          int                         // port number of this broker
 	lock          sync.Mutex                  // lock to manage broker access
 	cond          *sync.Cond                  // conditional variable for message log
-	leadChan      chan int                    // channel to make sure leader not nil
 }
 
 // SubscriptionSet implemented as a map from *Subscription to true.
@@ -44,12 +44,11 @@ func New(options *config.Config) *Broker {
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
-		leadChan:      make(chan int),
 	}
 	b.cond = sync.NewCond(&b.lock)
 
 	if FOLLOWER == config.Role() {
-		// go b.register(config.Register())
+		go b.register(config.Register())
 	}
 
 	return b
@@ -89,8 +88,28 @@ func (b *Broker) register(hostport string) {
 
 // tails returns the sizes of all log files, organized by their topics.
 func (b *Broker) tails() map[string]int64 {
-	// TODO
-	return nil
+
+	pattern := filepath.Join(b.config.LogDir(), "*"+EXT)
+	matches, err := filepath.Glob(pattern)
+	if nil != err {
+		return nil
+	}
+
+	ext := len(EXT)
+	tails := make(map[string]int64, len(matches))
+
+	for _, name := range matches {
+		stat, err := os.Stat(name)
+		if nil != err {
+			continue
+		}
+		topic := filepath.Base(name)
+		topic = topic[0 : len(topic)-ext]
+		tails[topic] = stat.Size()
+	}
+
+	return tails
+
 }
 
 // origin returns the host:port of this broker.
@@ -105,7 +124,6 @@ func (b *Broker) origin() string {
 // start handling messages once leader is ready
 // func (b *Broker) HandleMessages() {
 // 	// blocks until leader is ready
-// 	<-b.leadChan
 // 	for {
 // 		// start synchronization process
 // 		var sreq protocol.SyncRequest

@@ -28,13 +28,13 @@ type LogEntry struct {
 // Default file permission.
 const PERM os.FileMode = 0666
 
-// Log file suffix.
-const SUFFIX = ".ocp"
+// Log file extension.
+const EXT = ".ocp"
 
 // NewLog creates/opens a log file with a new file pointer.
 func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
-	name := path.Join(config.LogDir(), topic+SUFFIX)
+	name := path.Join(config.LogDir(), topic+EXT)
 	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, PERM)
 	if nil != err {
 		return nil, err
