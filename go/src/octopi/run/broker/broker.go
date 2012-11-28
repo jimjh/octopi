@@ -46,7 +46,7 @@ func producerHandler(ws *websocket.Conn) {
 		}
 
 		log.Info("Received produce request from %v.", ws.RemoteAddr())
-		if err := broker.Publish(request.Topic, &request.Message); nil != err {
+		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
 			log.Error(err.Error())
 			continue
 		}
@@ -135,11 +135,11 @@ func followerHandler(ws *websocket.Conn) {
 	if err == io.EOF {
 		return
 	}
-	conn := &protocol.Follower{ws}
-	broker.RegisterFollower(conn, request.Offsets)
+	// conn := &protocol.Follower{ws}
+	// TODO: broker.RegisterFollower(conn, request.Offsets)
 
 	// deal with sync
-	for {
+	/*for {
 		var ack protocol.SyncACK
 		err := websocket.JSON.Receive(ws, &ack)
 		if err == io.EOF {
@@ -148,7 +148,8 @@ func followerHandler(ws *websocket.Conn) {
 		broker.SyncFollower(conn, ack)
 	}
 
-	broker.DeleteFollower(conn)
+	broker.DeleteFollower(conn)*/
+
 }
 
 // main starts a broker instance.

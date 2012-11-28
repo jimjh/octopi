@@ -2,6 +2,7 @@ package brokerimpl
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -91,6 +92,18 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 	}
 
 	return nil
+
+}
+
+// Appends the given message from the given producer to the log.
+func (log *Log) Append(producer string, message *protocol.Message) error {
+
+	requeststr := fmt.Sprintf("%s:%d", producer, message.ID)
+	hasher := sha256.New()
+	hasher.Write([]byte(requeststr))
+
+	entry := &LogEntry{*message, hasher.Sum(nil)}
+	return log.WriteNext(entry)
 
 }
 
