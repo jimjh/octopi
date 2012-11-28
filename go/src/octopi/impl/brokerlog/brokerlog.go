@@ -92,8 +92,9 @@ func (blog *BLog) Read(id int64) ([]byte, int64, error) {
 
 }
 
-// reads an actual entry from the broker log 
+// reads an actual entry from the broker log
 func (blog *BLog) ReadEntry(id int64) (*BLogEntry, int64, error) {
+
 	b, next, err := blog.Read(id)
 	if nil != err {
 		return nil, -1, err

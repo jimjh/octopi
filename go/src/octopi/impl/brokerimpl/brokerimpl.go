@@ -1,3 +1,4 @@
+// Package brokerimpl contains implementation details of the broker.
 package brokerimpl
 
 import (
@@ -9,6 +10,7 @@ import (
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/impl/brokerlog"
+	"octopi/util/config"
 	"octopi/util/log"
 	"os"
 	"sync"
@@ -18,6 +20,7 @@ import (
 // Brokers relay messages from producers to followers. Every broker is a
 // follower, and one of the follower is a broker (so it registers with itself.)
 type Broker struct {
+	config          *Config
 	followers       map[*protocol.Follower]bool // set of followers
 	insyncFollowers map[string]FollowerSet      // list of followers that are in-sync with leader on a certain topic
 	upToDateTopics  map[string]bool             // set of up to date topics
@@ -34,9 +37,13 @@ type SubscriptionSet map[*Subscription]bool
 type FollowerSet map[*protocol.Follower]bool
 
 // New takes the host:port of the registry/leader and creates a new broker.
-func New(port int, master string) *Broker {
+// Options:
+// - register: host:port of registry/leader
+func New(options *config.Config) *Broker {
 
+	config := &Config{*options}
 	b := &Broker{
+		config:          config,
 		subscriptions:   make(map[string]SubscriptionSet),
 		followers:       make(map[*protocol.Follower]bool),
 		logs:            make(map[string]*brokerlog.BLog),
@@ -47,7 +54,7 @@ func New(port int, master string) *Broker {
 
 	// TODO: initialize log files based on log directory
 
-	go b.register(master)
+	go b.register(config.Register())
 	return b
 
 }
@@ -195,10 +202,6 @@ func (b *Broker) Publish(topic string, msg *protocol.Message) error {
 
 }
 
-func (b *Broker) broadcastCommits(msg *protocol.Message) {
-	//TODO: implement this method
-}
-
 func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]int64) {
 
 	b.lock.Lock()
@@ -272,10 +275,17 @@ func (b *Broker) DeleteFollower(follower *protocol.Follower) {
 // Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
 // receive any messages until a producer publishes a message under that topic.
-func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
+func (b *Broker) Subscribe(
+	conn *websocket.Conn,
+	topic string,
+	offset int64) (*Subscription, error) {
 
 	// create new subscription
-	subscription := NewSubscription(conn)
+	subscription, err := NewSubscription(b.config, conn, topic, offset)
+	if nil != err {
+		return nil, err
+	}
+
 	var subscriptions SubscriptionSet
 
 	b.lock.Lock()
@@ -289,9 +299,7 @@ func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
 	}
 	subscriptions[subscription] = true
 
-	// serve
-	go subscription.Serve()
-	return subscription
+	return subscription, nil
 
 }
 

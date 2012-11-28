@@ -76,7 +76,8 @@ func consumerHandler(conn *websocket.Conn) {
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
+			log.Warn("Ignoring invalid message from %v.",
+				conn.RemoteAddr())
 			continue
 		}
 
@@ -89,11 +90,17 @@ func consumerHandler(conn *websocket.Conn) {
 		log.Info("Received subscribe request from %v with offset %d.",
 			conn.RemoteAddr(), request.Offset)
 
-		subscription := broker.Subscribe(conn, request.Topic)
-		subscriptions[request.Topic] = subscription
+		subscription, err := broker.Subscribe(conn, request.Topic, request.Offset)
+		if nil != err {
+			log.Error(err.Error())
+			continue
+		}
 
+		subscriptions[request.Topic] = subscription
 		ack := protocol.Ack{Status: protocol.SUCCESS}
 		websocket.JSON.Send(conn, &ack)
+
+		go subscription.Serve()
 
 	}
 
@@ -170,11 +177,10 @@ func main() {
 	log.Info("Initializing broker with options from %s.", *configFile)
 	log.Info("Options read were: %v", config.Options)
 
-	// parse port number
 	port, err := strconv.Atoi(config.Get("port", "5050"))
 	checkError(err)
 
-	broker = brokerimpl.New(port, config.Get("register"))
+	broker = brokerimpl.New(config)
 	// TODO: go broker.HandleMessages()
 
 	listenHttp(port)

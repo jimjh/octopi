@@ -33,12 +33,15 @@ define(['./util', './config', './protocol'],
   //
   // If a subscription already exists for the given topic, it will be ignored.
   //} TODO: how to let application know if subscription failed?
-  Consumer.prototype.subscribe = function(topic, callback) {
+  Consumer.prototype.subscribe = function(topic, callback, offset) {
 
     if (_.isEmpty(topic) || !_.isString(topic))
       throw new TypeError('Invalid topic. Should be a non-empty string.');
     if (!_.isFunction(callback))
       throw new TypeError('Invalid callback. Should be a function.');
+    if (_.isUndefined(offset)) {
+      offset = -1;
+    }
 
     if (topic in this.subscriptions) return; // already subscribed
 
@@ -47,7 +50,7 @@ define(['./util', './config', './protocol'],
     conn.onmessage = handle(conn, callback);
     conn.onopen = function() {
       // if unable to send, just close and resubscribe
-      if (!conn.send(protocol.subscription(topic, 0))) return conn.close();
+      if (!conn.send(protocol.subscription(topic, offset))) return conn.close();
       util.warn('Retrying connection to broker ...');
       // otherwise, wait for ACK
       var wait = _.random(config.max_retry_interval);

@@ -83,8 +83,9 @@ type SubscribeRequest struct {
 
 // Messages sent from producers to brokers; the enclosed payload is broadcast
 // to all consumers subscribing to the topic.
+// XXX: do we need ID?
 type Message struct {
-	ID       uint32 // seq num from producer, or offset from broker
+	ID       int64  // seq num from producer, or offset from broker
 	Payload  []byte // message contents
 	Checksum uint32 // crc32 checksum
 }

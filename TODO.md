@@ -8,10 +8,12 @@
 + Failures and error handling
 + Add back-off and reconnect
 + Subscribe and wait for ACK
-- Send offsets
-- Consume from offsets
-- Restart from offsets
++ Send offsets
++ Consume from offsets (file)
+- Consume from offsets (producer)
+- Restart from offsets (file)
 - Receive special characters
+- Fix unsubscribe
 - Unit Tests
 - Implement redirect
 
@@ -20,7 +22,7 @@
 + Sequence Numbers
 + Failures and error handling
 + Retry and reconnection
-- Send and wait for ack
++ Send and wait for ack
 - Unit Tests
 - Implement redirect
 
@@ -35,7 +37,7 @@
 - Leader and follower
 - Implement redirects
 
-##JSON Config
+## JSON Config
 - Directory for log files with topics as file names
 
 - documentation
