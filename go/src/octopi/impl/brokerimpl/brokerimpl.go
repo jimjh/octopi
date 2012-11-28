@@ -19,11 +19,11 @@ type Broker struct {
 	config        *Config
 	followers     map[*protocol.Follower]bool // set of followers
 	subscriptions map[string]SubscriptionSet  // map of topics to consumer connections
-	waiting       map[string]SubscriptionSet  // map of topics to waiting subscriptions
 	logs          map[string]*Log             // map of topics to logs
 	leader        *websocket.Conn             // connection to the leader
 	port          int                         // port number of this broker
 	lock          sync.Mutex                  // lock to manage broker access
+	cond          *sync.Cond                  // conditional variable for message log
 	leadChan      chan int                    // channel to make sure leader not nil
 }
 
@@ -43,10 +43,10 @@ func New(options *config.Config) *Broker {
 		config:        config,
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
-		waiting:       make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
 		leadChan:      make(chan int),
 	}
+	b.cond = sync.NewCond(&b.lock)
 
 	if FOLLOWER == config.Role() {
 		// go b.register(config.Register())
@@ -254,7 +254,6 @@ func (b *Broker) Subscribe(
 }
 
 // Unsubscribe removes the given subscription from the broker.
-// FIXME: need to stop consumers that are reading off the file.
 func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 	b.lock.Lock()
@@ -265,32 +264,22 @@ func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 		return
 	}
 
-	close(subscription.send)
+	subscription.quit <- nil
 	delete(subscriptions, subscription)
 
 }
 
-// wait checks if the subscription is really at the end of the log, and adds it
-// to the waiting set.
-// FIXME: fragile; use condvar
-func (b *Broker) wait(s *Subscription) bool {
+// wait checks if the subscription is really at the end of the log. It returns
+// iff there is more to be read.
+func (b *Broker) wait(s *Subscription) {
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	if !s.log.IsEOF() {
-		return false
+	for s.log.IsEOF() {
+		b.cond.Wait()
+		return
 	}
-	log.Debug("EOF confirmed.")
-
-	subscriptions, exists := b.waiting[s.topic]
-	if !exists {
-		b.waiting[s.topic] = make(SubscriptionSet)
-		subscriptions = b.waiting[s.topic]
-	}
-
-	subscriptions[s] = true
-	return true
 
 }
 
@@ -317,23 +306,7 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 		return err
 	}
 
-	go func() {
-
-		b.lock.Lock()
-		defer b.lock.Unlock()
-
-		subscriptions, exists := b.waiting[topic]
-		if !exists { // no waiting subscribers
-			return
-		}
-
-		// ping waiting subscriptions
-		for subscription := range subscriptions {
-			subscription.send <- nil
-		}
-
-	}()
-
+	b.cond.Broadcast()
 	return nil
 
 }
