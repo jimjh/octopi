@@ -4,11 +4,13 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"fmt"
+	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/config"
 	"octopi/util/log"
 	"os"
 	"sync"
+	"time"
 )
 
 // Brokers relay messages from producers to followers. One broker is a leader,
@@ -56,7 +58,7 @@ func New(options *config.Config) *Broker {
 
 // register sends a follow request to the given leader.
 // TODO: implement redirect.
-/* func (b *Broker) register(hostport string) {
+func (b *Broker) register(hostport string) {
 
 	var err error
 	var leader *websocket.Conn
@@ -68,11 +70,8 @@ func New(options *config.Config) *Broker {
 
 		leader, err = websocket.Dial(endpoint, "", origin)
 		if nil == err {
-			offsets := make(map[string]int64)
-			for topic, log := range b.logs {
-				offsets[topic] = log.HighWaterMark()
-			}
-			websocket.JSON.Send(leader, protocol.FollowRequest{offsets})
+			websocket.JSON.Send(leader, protocol.FollowRequest{b.tails()})
+			// TODO: wait for ack
 			break
 		}
 
@@ -85,9 +84,14 @@ func New(options *config.Config) *Broker {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.leader = leader
-	// TODO: b.leadChan <- 0 // notify leader ready
 
-}*/
+}
+
+// tails returns the sizes of all log files, organized by their topics.
+func (b *Broker) tails() map[string]int64 {
+	// TODO
+	return nil
+}
 
 // origin returns the host:port of this broker.
 func (b *Broker) origin() string {

@@ -122,24 +122,15 @@ func followerHandler(ws *websocket.Conn) {
 	defer ws.Close()
 
 	var request protocol.FollowRequest
-	err := websocket.JSON.Receive(ws, &request)
-
-	// shut down if broken connection or wrong message format
-	if err != nil {
+	if nil != websocket.JSON.Receive(ws, &request) {
 		return
 	}
 
 	log.Info("Received follow request from %v.", ws.RemoteAddr())
 
-	// send followack
-	err = websocket.JSON.Send(ws, protocol.FollowACK{})
-
-	// shut down if broken connection
-	if err == io.EOF {
-		return
-	}
 	// conn := &protocol.Follower{ws}
 	// TODO: broker.RegisterFollower(conn, request.Offsets)
+	// err = websocket.JSON.Send(ws, protocol.FollowACK{})
 
 	// deal with sync
 	/*for {

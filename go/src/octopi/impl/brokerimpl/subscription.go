@@ -61,7 +61,10 @@ func (s *Subscription) Serve() error {
 		case io.EOF: // wait for ping
 			log.Warn("Reached end of log.")
 			if s.broker.wait(s) { // XXX: fragile; change to condvar
-				<-s.send
+				_, ok := <-s.send
+				if !ok {
+					break
+				}
 			}
 		default: // abort
 			log.Error("Error reading from log: ", err.Error())

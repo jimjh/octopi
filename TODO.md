@@ -11,6 +11,7 @@
 + Send offsets
 + Consume from offsets (file)
 + Consume from offsets (producer)
+- Fix panics
 - Restart from offsets (file)
 - Receive special characters
 - Fix unsubscribe
