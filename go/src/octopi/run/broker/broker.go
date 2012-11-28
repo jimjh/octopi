@@ -27,33 +27,36 @@ var broker *brokerimpl.Broker
 // producerHandler handles incoming produce requests. Producers may send
 // multiple produce requests on the same persistent connection. The function
 // exits when an `io.EOF` is received on the connection.
-func producerHandler(ws *websocket.Conn) {
+func producerHandler(conn *websocket.Conn) {
 
-	defer ws.Close()
+	defer conn.Close()
 
 	for {
 
 		var request protocol.ProduceRequest
 
-		err := websocket.JSON.Receive(ws, &request)
+		err := websocket.JSON.Receive(conn, &request)
 		if err == io.EOF { // graceful shutdown
 			break
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
 			continue
 		}
 
-		log.Info("Received produce request from %v.", ws.RemoteAddr())
+		log.Info("Received produce request from %v.", conn.RemoteAddr())
 		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
 			log.Error(err.Error())
 			continue
 		}
 
+		ack := protocol.Ack{Status: protocol.SUCCESS}
+		websocket.JSON.Send(conn, &ack)
+
 	}
 
-	log.Info("Closed producer connection from %v.", ws.RemoteAddr())
+	log.Info("Closed producer connection from %v.", conn.RemoteAddr())
 
 }
 
@@ -128,10 +131,10 @@ func followerHandler(ws *websocket.Conn) {
 
 	log.Info("Received follow request from %v.", ws.RemoteAddr())
 
-	//send followack
+	// send followack
 	err = websocket.JSON.Send(ws, protocol.FollowACK{})
 
-	//shut down if broken connection
+	// shut down if broken connection
 	if err == io.EOF {
 		return
 	}

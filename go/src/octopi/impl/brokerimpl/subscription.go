@@ -59,7 +59,8 @@ func (s *Subscription) Serve() error {
 		case nil: // send to consumer
 			err = websocket.JSON.Send(s.conn, &entry.Message)
 		case io.EOF: // wait for ping
-			if s.broker.wait(s) {
+			log.Warn("Reached end of log.")
+			if s.broker.wait(s) { // XXX: fragile; change to condvar
 				<-s.send
 			}
 		default: // abort

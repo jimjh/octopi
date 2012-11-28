@@ -109,7 +109,7 @@ func (p *Producer) Send(topic string, payload []byte) error {
 				if ok {
 					if protocol.SUCCESS == ack.Status {
 						log.Debug("Ack received.")
-						break // success
+						return nil
 					}
 					continue
 				} // otherwise, reconnect

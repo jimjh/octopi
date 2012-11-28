@@ -36,9 +36,9 @@
 - Switch to cond vars for Produce method to wait for enough FollowerACKs
 - Ack producer requests
 - Implement redirects
+- Implement timer flush
 
-## JSON Config
-- Directory for log files with topics as file names
+## Register
 
 - documentation
 - demo app

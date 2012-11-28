@@ -116,7 +116,7 @@ func (log *Log) IsEOF() bool {
 	defer bail()
 
 	// try reading one byte
-	_, err := log.Seek(1, os.SEEK_CUR)
+	_, err := log.Read(make([]byte, 1))
 	return io.EOF == err
 
 }

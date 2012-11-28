@@ -11,8 +11,8 @@ import (
 	"sync"
 )
 
-// Brokers relay messages from producers to followers. Every broker is a
-// follower, and one of the follower is a broker (so it registers with itself.)
+// Brokers relay messages from producers to followers. One broker is a leader,
+// and the others are followers.
 type Broker struct {
 	config          *Config
 	followers       map[*protocol.Follower]bool // set of followers
@@ -42,6 +42,7 @@ func New(options *config.Config) *Broker {
 	b := &Broker{
 		config:          config,
 		subscriptions:   make(map[string]SubscriptionSet),
+		waiting:         make(map[string]SubscriptionSet),
 		followers:       make(map[*protocol.Follower]bool),
 		logs:            make(map[string]*Log),
 		insyncFollowers: make(map[string]FollowerSet),
@@ -177,15 +178,22 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 		return err
 	}
 
-	subscriptions, exists := b.waiting[topic]
-	if !exists { // no waiting subscribers
-		return nil
-	}
+	go func() {
 
-	// ping waiting subscriptions
-	for subscription := range subscriptions {
-		subscription.send <- msg
-	}
+		b.lock.Lock()
+		defer b.lock.Unlock()
+
+		subscriptions, exists := b.waiting[topic]
+		if !exists { // no waiting subscribers
+			return
+		}
+
+		// ping waiting subscriptions
+		for subscription := range subscriptions {
+			subscription.send <- nil
+		}
+
+	}()
 
 	return nil
 
@@ -318,6 +326,7 @@ func (b *Broker) wait(s *Subscription) bool {
 	if !s.log.IsEOF() {
 		return false
 	}
+	log.Debug("EOF confirmed.")
 
 	subscriptions, exists := b.waiting[s.topic]
 	if !exists {
