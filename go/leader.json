@@ -1,0 +1,8 @@
+{
+  "Options": {
+    "port": "12345",
+    "register": "localhost:12345",
+    "log_dir": ".",
+    "role": "leader"
+  }
+}

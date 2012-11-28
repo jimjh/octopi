@@ -1,5 +1,5 @@
-// The file defines the protocol that producers, consumers, brokers, and
-// registers will use to communicate with each other.
+// Package protocol defines the protocol that producers, consumers, brokers,
+// and registers will use to communicate with each other.
 // TODO: versioning.
 package protocol
 
@@ -9,8 +9,8 @@ import (
 
 // URL endpoints
 const (
-	PUBLISH   = "publish"
-	SUBSCRIBE = "subscribe"
+	PUBLISH   = "publish"   // producer -> broker
+	SUBSCRIBE = "subscribe" // consumer -> broker
 	FOLLOW    = "follow"
 )
 
@@ -28,7 +28,7 @@ const (
 )
 
 // Max number of milliseconds between retries.
-// XXX: move this to a configuration file
+// TODO: move this to a configuration file
 var MAX_RETRY_INTERVAL = 2000
 
 type Follower struct {
@@ -37,7 +37,7 @@ type Follower struct {
 
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
-	Offsets  map[string]int64 // high watermarks of each topic log
+	Offsets map[string]int64 // high watermarks of each topic log
 }
 
 // FollowACKs are sent from leaders to followers in response to follow
@@ -77,13 +77,15 @@ type ProduceRequest struct {
 // SubscribeRequests are sent from consumers to brokers when they want messages
 // from a particular topic.
 type SubscribeRequest struct {
-	Topic string
+	Topic  string
+	Offset int64 // optional
 }
 
-// Messages sent from producers to brokers; the enclosed payload is broadcast to
-// all consumers subscribing to the topic.
+// Messages sent from producers to brokers; the enclosed payload is broadcast
+// to all consumers subscribing to the topic.
+// XXX: do we need ID?
 type Message struct {
-	ID       uint32 // seq num from producer, or offset from broker
+	ID       int64  // seq num from producer, or offset from broker
 	Payload  []byte // message contents
 	Checksum uint32 // crc32 checksum
 }

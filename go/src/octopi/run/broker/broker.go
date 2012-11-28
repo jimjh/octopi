@@ -27,33 +27,36 @@ var broker *brokerimpl.Broker
 // producerHandler handles incoming produce requests. Producers may send
 // multiple produce requests on the same persistent connection. The function
 // exits when an `io.EOF` is received on the connection.
-func producerHandler(ws *websocket.Conn) {
+func producerHandler(conn *websocket.Conn) {
 
-	defer ws.Close()
+	defer conn.Close()
 
 	for {
 
 		var request protocol.ProduceRequest
 
-		err := websocket.JSON.Receive(ws, &request)
+		err := websocket.JSON.Receive(conn, &request)
 		if err == io.EOF { // graceful shutdown
 			break
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", ws.RemoteAddr())
+			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
 			continue
 		}
 
-		log.Info("Received produce request from %v.", ws.RemoteAddr())
-		if err := broker.Publish(request.Topic, &request.Message); nil != err {
+		log.Info("Received produce request from %v.", conn.RemoteAddr())
+		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
 			log.Error(err.Error())
 			continue
 		}
 
+		ack := protocol.Ack{Status: protocol.SUCCESS}
+		websocket.JSON.Send(conn, &ack)
+
 	}
 
-	log.Info("Closed producer connection from %v.", ws.RemoteAddr())
+	log.Info("Closed producer connection from %v.", conn.RemoteAddr())
 
 }
 
@@ -76,22 +79,31 @@ func consumerHandler(conn *websocket.Conn) {
 		}
 
 		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
+			log.Warn("Ignoring invalid message from %v.",
+				conn.RemoteAddr())
 			continue
 		}
 
 		if _, exists := subscriptions[request.Topic]; exists {
-			log.Warn("Ignoring duplicate subscribe request from %v.", conn.RemoteAddr())
+			log.Warn("Ignoring duplicate subscribe request from %v.",
+				conn.RemoteAddr())
 			continue
 		}
 
-		// TODO: catchup/rewind
-		log.Info("Received subscribe request from %v.", conn.RemoteAddr())
-		subscription := broker.Subscribe(conn, request.Topic)
-		subscriptions[request.Topic] = subscription
+		log.Info("Received subscribe request from %v with offset %d.",
+			conn.RemoteAddr(), request.Offset)
 
+		subscription, err := broker.Subscribe(conn, request.Topic, request.Offset)
+		if nil != err {
+			log.Error(err.Error())
+			continue
+		}
+
+		subscriptions[request.Topic] = subscription
 		ack := protocol.Ack{Status: protocol.SUCCESS}
 		websocket.JSON.Send(conn, &ack)
+
+		go subscription.Serve()
 
 	}
 
@@ -111,35 +123,36 @@ func followerHandler(ws *websocket.Conn) {
 
 	var request protocol.FollowRequest
 	err := websocket.JSON.Receive(ws, &request)
-	
-	// shut down if broken connection or wrong message format 
+
+	// shut down if broken connection or wrong message format
 	if err != nil {
 		return
 	}
 
 	log.Info("Received follow request from %v.", ws.RemoteAddr())
 
-	//send followack
+	// send followack
 	err = websocket.JSON.Send(ws, protocol.FollowACK{})
-	
-	//shut down if broken connection
-	if err == io.EOF{
+
+	// shut down if broken connection
+	if err == io.EOF {
 		return
 	}
-	conn := &protocol.Follower{ws}
-	broker.RegisterFollower(conn, request.Offsets)
+	// conn := &protocol.Follower{ws}
+	// TODO: broker.RegisterFollower(conn, request.Offsets)
 
 	// deal with sync
-	for{
+	/*for {
 		var ack protocol.SyncACK
 		err := websocket.JSON.Receive(ws, &ack)
-		if err == io.EOF{
+		if err == io.EOF {
 			break
 		}
 		broker.SyncFollower(conn, ack)
 	}
 
-	broker.DeleteFollower(conn)
+	broker.DeleteFollower(conn)*/
+
 }
 
 // main starts a broker instance.
@@ -168,13 +181,11 @@ func main() {
 	log.Info("Initializing broker with options from %s.", *configFile)
 	log.Info("Options read were: %v", config.Options)
 
-	// parse port number
 	port, err := strconv.Atoi(config.Get("port", "5050"))
 	checkError(err)
 
-	broker = brokerimpl.New(port, config.Get("register"))
-
-	go broker.HandleMessages()
+	broker = brokerimpl.New(config)
+	// TODO: go broker.HandleMessages()
 
 	listenHttp(port)
 

@@ -1,60 +1,62 @@
+// Package brokerimpl contains implementation details of the broker.
 package brokerimpl
 
 import (
-	"bytes"
 	"code.google.com/p/go.net/websocket"
-	"encoding/binary"
 	"fmt"
-	"io"
-	"math/rand"
 	"octopi/api/protocol"
-	"octopi/impl/brokerlog"
+	"octopi/util/config"
 	"octopi/util/log"
 	"os"
 	"sync"
-	"time"
 )
 
-// Brokers relay messages from producers to followers. Every broker is a
-// follower, and one of the follower is a broker (so it registers with itself.)
+// Brokers relay messages from producers to followers. One broker is a leader,
+// and the others are followers.
 type Broker struct {
-	followers       map[*protocol.Follower]bool // set of followers
-	insyncFollowers map[string]FollowerSet      // list of followers that are in-sync with leader on a certain topic
-	upToDateTopics  map[string]bool             // set of up to date topics
-	subscriptions   map[string]SubscriptionSet  // map of topics to consumer connections
-	logs            map[string]*brokerlog.BLog  // map of topics to logs
-	leader          *websocket.Conn             // connection to the leader
-	port            int                         // port number of this broker
-	lock            sync.Mutex                  // lock to manage broker access
-	leadChan        chan int                    //channel to make sure leader not nil
+	config        *Config
+	followers     map[*protocol.Follower]bool // set of followers
+	subscriptions map[string]SubscriptionSet  // map of topics to consumer connections
+	waiting       map[string]SubscriptionSet  // map of topics to waiting subscriptions
+	logs          map[string]*Log             // map of topics to logs
+	leader        *websocket.Conn             // connection to the leader
+	port          int                         // port number of this broker
+	lock          sync.Mutex                  // lock to manage broker access
+	leadChan      chan int                    // channel to make sure leader not nil
 }
 
 // SubscriptionSet implemented as a map from *Subscription to true.
 type SubscriptionSet map[*Subscription]bool
+
+// FollowerSet implemented as a map from *Follower to true.
 type FollowerSet map[*protocol.Follower]bool
 
 // New takes the host:port of the registry/leader and creates a new broker.
-func New(port int, master string) *Broker {
+// Options:
+// - register: host:port of registry/leader
+func New(options *config.Config) *Broker {
 
+	config := &Config{*options}
 	b := &Broker{
-		subscriptions:   make(map[string]SubscriptionSet),
-		followers:       make(map[*protocol.Follower]bool),
-		logs:            make(map[string]*brokerlog.BLog),
-		insyncFollowers: make(map[string]FollowerSet),
-		upToDateTopics:  make(map[string]bool),
-		leadChan:        make(chan int),
+		config:        config,
+		followers:     make(FollowerSet),
+		subscriptions: make(map[string]SubscriptionSet),
+		waiting:       make(map[string]SubscriptionSet),
+		logs:          make(map[string]*Log),
+		leadChan:      make(chan int),
 	}
 
-	// TODO: initialize log files based on log directory
+	if FOLLOWER == config.Role() {
+		// go b.register(config.Register())
+	}
 
-	go b.register(master)
 	return b
 
 }
 
 // register sends a follow request to the given leader.
 // TODO: implement redirect.
-func (b *Broker) register(hostport string) {
+/* func (b *Broker) register(hostport string) {
 
 	var err error
 	var leader *websocket.Conn
@@ -83,122 +85,70 @@ func (b *Broker) register(hostport string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.leader = leader
-	b.leadChan <- 0 //notify leader ready
-}
+	// TODO: b.leadChan <- 0 // notify leader ready
+
+}*/
 
 // origin returns the host:port of this broker.
 func (b *Broker) origin() string {
-
 	host, err := os.Hostname()
 	if nil != err {
 		log.Panic(err.Error())
 	}
-
 	return fmt.Sprintf("%s:%d", host, b.port)
-
 }
 
 // start handling messages once leader is ready
-func (b *Broker) HandleMessages() {
-	// blocks until leader is ready
-	<-b.leadChan
-	for {
-		// start synchronization process
-		var sreq protocol.SyncRequest
-		err := websocket.JSON.Receive(b.leader, &sreq)
-		if err == io.EOF {
-			// TODO: Leader failure
-		}
+// func (b *Broker) HandleMessages() {
+// 	// blocks until leader is ready
+// 	<-b.leadChan
+// 	for {
+// 		// start synchronization process
+// 		var sreq protocol.SyncRequest
+// 		err := websocket.JSON.Receive(b.leader, &sreq)
+// 		if err == io.EOF {
+// 			// TODO: Leader failure
+// 		}
+//
+// 		currtopic := sreq.Topic
+//
+// 		b.lock.Lock()
+// 		tLog, exists := b.logs[currtopic]
+//
+// 		// create a new log if topic not seen before
+// 		if !exists {
+// 			// TODO: set correct path and handle failure
+// 			b.logs[currtopic], _ = brokerlog.OpenLog(currtopic)
+// 			tLog = b.logs[currtopic]
+// 		}
+// 		// XXX: what to do if log failure?
+// 		switch sreq.Type {
+// 		case protocol.UPDATE:
+// 			tLog.WriteBytes(sreq.Message)
+// 			// advance hwmark if not up-to-date yet
+// 			if !b.upToDateTopics[currtopic] {
+// 				tLog.Commit(tLog.Tail())
+// 			}
+// 			// construct update/write acknowledgement
+// 			synAck := protocol.SyncACK{
+// 				Topic:  currtopic,
+// 				Offset: tLog.HighWaterMark(),
+// 			}
+// 			b.lock.Unlock()
+// 			// send the update/write acknowledgement
+// 			websocket.JSON.Send(b.leader, synAck)
+// 		case protocol.COMMIT:
+// 			b.upToDateTopics[currtopic] = true
+// 			var msgid int64
+// 			buf := bytes.NewBuffer(sreq.Message)
+// 			binary.Read(buf, binary.LittleEndian, &msgid)
+// 			tLog.Commit(msgid)
+// 			b.lock.Unlock()
+// 		}
+// 	}
+// }
 
-		currtopic := sreq.Topic
-
-		b.lock.Lock()
-		tLog, exists := b.logs[currtopic]
-
-		// create a new log if topic not seen before
-		if !exists {
-			// TODO: set correct path and handle failure
-			b.logs[currtopic], _ = brokerlog.OpenLog(currtopic)
-			tLog = b.logs[currtopic]
-		}
-		// XXX: what to do if log failure?
-		switch sreq.Type {
-		case protocol.UPDATE:
-			tLog.WriteBytes(sreq.Message)
-			// advance hwmark if not up-to-date yet
-			if !b.upToDateTopics[currtopic] {
-				tLog.Commit(tLog.Tail())
-			}
-			// construct update/write acknowledgement
-			synAck := protocol.SyncACK{
-				Topic:  currtopic,
-				Offset: tLog.HighWaterMark(),
-			}
-			b.lock.Unlock()
-			// send the update/write acknowledgement
-			websocket.JSON.Send(b.leader, synAck)
-		case protocol.COMMIT:
-			b.upToDateTopics[currtopic] = true
-			var msgid int64
-			buf := bytes.NewBuffer(sreq.Message)
-			binary.Read(buf, binary.LittleEndian, &msgid)
-			tLog.Commit(msgid)
-			b.lock.Unlock()
-		}
-	}
-}
-
-// Publish publishes the given message to all subscribers.
-func (b *Broker) Publish(topic string, msg *protocol.Message) error {
-
-	b.lock.Lock()
-
-	bLog, exists := b.logs[topic]
-	if !exists {
-		// TODO: determine path of logs
-		tmpLog, err := brokerlog.OpenLog(topic)
-		if nil != err {
-			//TODO: cannot open log!
-			b.lock.Unlock()
-			return err
-		} else {
-			b.logs[topic] = tmpLog
-			bLog = tmpLog
-		}
-		followerset := make(map[*protocol.Follower]bool)
-		b.insyncFollowers[topic] = followerset
-	}
-
-	bLog = bLog //FIXME: temporary placeholder
-
-	b.lock.Unlock()
-
-	// TODO: use conidition variable to wait for insyncFollower ACK
-	// TODO: wait for followerHandler to broadcast to followers and ACK
-	// TODO: broadcast commits if enough ACK
-	// TODO: reply to producer after commit
-
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	subscriptions, exists := b.subscriptions[topic]
-	if !exists { // no subscribers
-		return nil
-	}
-
-	for subscription := range subscriptions {
-		subscription.send <- msg
-	}
-
-	return nil
-
-}
-
-func (b *Broker) broadcastCommits(msg *protocol.Message) {
-	//TODO: implement this method
-}
-
-func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]int64) {
+/*func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]int64) {
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
@@ -218,10 +168,10 @@ func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]in
 			return
 		}
 	}
-}
+}*/
 
 //updates to check if follower has caught up or not
-func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
+/*func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	bLog, exists := b.logs[ack.Topic]
@@ -236,9 +186,9 @@ func (b *Broker) SyncFollower(conn *protocol.Follower, ack protocol.SyncACK) {
 		// ACK of write from in-sync follower
 		// TODO: record ACK and determine if send commit
 	}
-}
+}*/
 
-func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {
+/*func (b *Broker) sendSyncRequest(conn *protocol.Follower, myOffset int64, followerOffset int64, topic string, blog *brokerlog.BLog) error {
 	var sreq protocol.SyncRequest
 	sreq.Topic = topic
 	if myOffset <= followerOffset {
@@ -266,15 +216,22 @@ func (b *Broker) DeleteFollower(follower *protocol.Follower) {
 	for _, followers := range b.insyncFollowers {
 		delete(followers, follower)
 	}
-}
+}*/
 
 // Subscribe creates a new subscription for the given consumer connection.
 // Consumers are allowed to register for non-existent topics, but will not
 // receive any messages until a producer publishes a message under that topic.
-func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
+func (b *Broker) Subscribe(
+	conn *websocket.Conn,
+	topic string,
+	offset int64) (*Subscription, error) {
 
 	// create new subscription
-	subscription := NewSubscription(conn)
+	subscription, err := NewSubscription(b, conn, topic, offset)
+	if nil != err {
+		return nil, err
+	}
+
 	var subscriptions SubscriptionSet
 
 	b.lock.Lock()
@@ -288,13 +245,12 @@ func (b *Broker) Subscribe(conn *websocket.Conn, topic string) *Subscription {
 	}
 	subscriptions[subscription] = true
 
-	// serve
-	go subscription.Serve()
-	return subscription
+	return subscription, nil
 
 }
 
 // Unsubscribe removes the given subscription from the broker.
+// FIXME: need to stop consumers that are reading off the file.
 func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 	b.lock.Lock()
@@ -307,5 +263,73 @@ func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 	close(subscription.send)
 	delete(subscriptions, subscription)
+
+}
+
+// wait checks if the subscription is really at the end of the log, and adds it
+// to the waiting set.
+// FIXME: fragile; use condvar
+func (b *Broker) wait(s *Subscription) bool {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	if !s.log.IsEOF() {
+		return false
+	}
+	log.Debug("EOF confirmed.")
+
+	subscriptions, exists := b.waiting[s.topic]
+	if !exists {
+		b.waiting[s.topic] = make(SubscriptionSet)
+		subscriptions = b.waiting[s.topic]
+	}
+
+	subscriptions[s] = true
+	return true
+
+}
+
+// Publish publishes the given message to all subscribers.
+func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
+
+	// TODO: topic-specific locks
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	var err error
+	file, exists := b.logs[topic]
+	if !exists {
+		file, err = OpenLog(b.config, topic, -1)
+		if nil != err {
+			return err
+		} else {
+			b.logs[topic] = file
+		}
+	}
+
+	err = file.Append(producer, msg)
+	if nil != err {
+		return err
+	}
+
+	go func() {
+
+		b.lock.Lock()
+		defer b.lock.Unlock()
+
+		subscriptions, exists := b.waiting[topic]
+		if !exists { // no waiting subscribers
+			return
+		}
+
+		// ping waiting subscriptions
+		for subscription := range subscriptions {
+			subscription.send <- nil
+		}
+
+	}()
+
+	return nil
 
 }

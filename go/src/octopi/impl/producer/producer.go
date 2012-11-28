@@ -19,7 +19,7 @@ import (
 // Producers publish messages to brokers.
 type Producer struct {
 	conn   *websocket.Conn // persistent websocket connection
-	seqnum uint32          // sequence number of messages
+	seqnum int64           // sequence number of messages
 	lock   sync.Mutex      // lock for producer state
 	id     string          // producer ID
 }
@@ -92,7 +92,7 @@ func (p *Producer) reconnect() error {
 // received. If the max number of retries is exceeded, returns the last error.
 func (p *Producer) Send(topic string, payload []byte) error {
 
-	seqnum := atomic.AddUint32(&p.seqnum, 1)
+	seqnum := atomic.AddInt64(&p.seqnum, 1)
 	message := protocol.Message{seqnum, payload, crc32.ChecksumIEEE(payload)}
 	request := &protocol.ProduceRequest{p.id, topic, message}
 
@@ -109,7 +109,7 @@ func (p *Producer) Send(topic string, payload []byte) error {
 				if ok {
 					if protocol.SUCCESS == ack.Status {
 						log.Debug("Ack received.")
-						break // success
+						return nil
 					}
 					continue
 				} // otherwise, reconnect
@@ -164,7 +164,7 @@ func (p *Producer) Close() {
 
 // ProduceErrors indicate that a produce request failed.
 type ProduceError struct {
-	seqnum uint32
+	seqnum int64
 }
 
 func (e *ProduceError) Error() string {
