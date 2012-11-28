@@ -23,7 +23,7 @@ const (
 
 // Max number of milliseconds between retries.
 // TODO: move this to a configuration file
-var MAX_RETRY_INTERVAL = 2000
+const MAX_RETRY_INTERVAL = 2000
 
 type Follower struct {
 	Conn *websocket.Conn
