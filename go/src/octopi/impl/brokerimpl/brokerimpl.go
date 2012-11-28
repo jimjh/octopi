@@ -14,17 +14,15 @@ import (
 // Brokers relay messages from producers to followers. One broker is a leader,
 // and the others are followers.
 type Broker struct {
-	config          *Config
-	followers       map[*protocol.Follower]bool // set of followers
-	insyncFollowers map[string]FollowerSet      // list of followers that are in-sync with leader on a certain topic
-	upToDateTopics  map[string]bool             // set of up to date topics
-	subscriptions   map[string]SubscriptionSet  // map of topics to consumer connections
-	waiting         map[string]SubscriptionSet  // map of topics to waiting subscriptions
-	logs            map[string]*Log             // map of topics to logs
-	leader          *websocket.Conn             // connection to the leader
-	port            int                         // port number of this broker
-	lock            sync.Mutex                  // lock to manage broker access
-	leadChan        chan int                    // channel to make sure leader not nil
+	config        *Config
+	followers     map[*protocol.Follower]bool // set of followers
+	subscriptions map[string]SubscriptionSet  // map of topics to consumer connections
+	waiting       map[string]SubscriptionSet  // map of topics to waiting subscriptions
+	logs          map[string]*Log             // map of topics to logs
+	leader        *websocket.Conn             // connection to the leader
+	port          int                         // port number of this broker
+	lock          sync.Mutex                  // lock to manage broker access
+	leadChan      chan int                    // channel to make sure leader not nil
 }
 
 // SubscriptionSet implemented as a map from *Subscription to true.
@@ -40,24 +38,25 @@ func New(options *config.Config) *Broker {
 
 	config := &Config{*options}
 	b := &Broker{
-		config:          config,
-		subscriptions:   make(map[string]SubscriptionSet),
-		waiting:         make(map[string]SubscriptionSet),
-		followers:       make(map[*protocol.Follower]bool),
-		logs:            make(map[string]*Log),
-		insyncFollowers: make(map[string]FollowerSet),
-		upToDateTopics:  make(map[string]bool),
-		leadChan:        make(chan int),
+		config:        config,
+		followers:     make(FollowerSet),
+		subscriptions: make(map[string]SubscriptionSet),
+		waiting:       make(map[string]SubscriptionSet),
+		logs:          make(map[string]*Log),
+		leadChan:      make(chan int),
 	}
 
-	// go b.register(config.Register())
+	if FOLLOWER == config.Role() {
+		// go b.register(config.Register())
+	}
+
 	return b
 
 }
 
 // register sends a follow request to the given leader.
 // TODO: implement redirect.
-/*func (b *Broker) register(hostport string) {
+/* func (b *Broker) register(hostport string) {
 
 	var err error
 	var leader *websocket.Conn
@@ -92,14 +91,11 @@ func New(options *config.Config) *Broker {
 
 // origin returns the host:port of this broker.
 func (b *Broker) origin() string {
-
 	host, err := os.Hostname()
 	if nil != err {
 		log.Panic(err.Error())
 	}
-
 	return fmt.Sprintf("%s:%d", host, b.port)
-
 }
 
 // start handling messages once leader is ready
@@ -151,53 +147,6 @@ func (b *Broker) origin() string {
 // 		}
 // 	}
 // }
-
-// Publish publishes the given message to all subscribers.
-func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
-
-	// TODO: topic-specific locks
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	var err error
-	file, exists := b.logs[topic]
-	if !exists {
-		file, err = OpenLog(b.config, topic, -1)
-		if nil != err {
-			b.lock.Unlock()
-			return err
-		} else {
-			b.logs[topic] = file
-		}
-		followerset := make(map[*protocol.Follower]bool)
-		b.insyncFollowers[topic] = followerset
-	}
-
-	err = file.Append(producer, msg)
-	if nil != err {
-		return err
-	}
-
-	go func() {
-
-		b.lock.Lock()
-		defer b.lock.Unlock()
-
-		subscriptions, exists := b.waiting[topic]
-		if !exists { // no waiting subscribers
-			return
-		}
-
-		// ping waiting subscriptions
-		for subscription := range subscriptions {
-			subscription.send <- nil
-		}
-
-	}()
-
-	return nil
-
-}
 
 /*func (b *Broker) RegisterFollower(conn *protocol.Follower, offsets map[string]int64) {
 
@@ -301,6 +250,7 @@ func (b *Broker) Subscribe(
 }
 
 // Unsubscribe removes the given subscription from the broker.
+// FIXME: need to stop consumers that are reading off the file.
 func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 	b.lock.Lock()
@@ -318,6 +268,7 @@ func (b *Broker) Unsubscribe(topic string, subscription *Subscription) {
 
 // wait checks if the subscription is really at the end of the log, and adds it
 // to the waiting set.
+// FIXME: fragile; use condvar
 func (b *Broker) wait(s *Subscription) bool {
 
 	b.lock.Lock()
@@ -330,11 +281,55 @@ func (b *Broker) wait(s *Subscription) bool {
 
 	subscriptions, exists := b.waiting[s.topic]
 	if !exists {
-		b.waiting[s.topic] = make(map[*Subscription]bool)
+		b.waiting[s.topic] = make(SubscriptionSet)
 		subscriptions = b.waiting[s.topic]
 	}
 
 	subscriptions[s] = true
 	return true
+
+}
+
+// Publish publishes the given message to all subscribers.
+func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
+
+	// TODO: topic-specific locks
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	var err error
+	file, exists := b.logs[topic]
+	if !exists {
+		file, err = OpenLog(b.config, topic, -1)
+		if nil != err {
+			return err
+		} else {
+			b.logs[topic] = file
+		}
+	}
+
+	err = file.Append(producer, msg)
+	if nil != err {
+		return err
+	}
+
+	go func() {
+
+		b.lock.Lock()
+		defer b.lock.Unlock()
+
+		subscriptions, exists := b.waiting[topic]
+		if !exists { // no waiting subscribers
+			return
+		}
+
+		// ping waiting subscriptions
+		for subscription := range subscriptions {
+			subscription.send <- nil
+		}
+
+	}()
+
+	return nil
 
 }
