@@ -48,7 +48,7 @@ func New(options *config.Config) *Broker {
 	b.cond = sync.NewCond(&b.lock)
 
 	if FOLLOWER == config.Role() {
-		go b.register(config.Register())
+		b.register(config.Register())
 	}
 
 	return b
@@ -59,24 +59,35 @@ func New(options *config.Config) *Broker {
 // TODO: implement redirect.
 func (b *Broker) register(hostport string) {
 
-	var err error
 	var leader *websocket.Conn
 
 	endpoint := "ws://" + hostport + "/" + protocol.FOLLOW
 	origin := b.origin()
 
-	for { // keep trying to connect
+	backoff := func() {
+		duration := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
+		log.Debug("Backing off %d milliseconds.", duration)
+		time.Sleep(duration * time.Millisecond)
+	}
 
-		leader, err = websocket.Dial(endpoint, "", origin)
-		if nil == err {
-			websocket.JSON.Send(leader, protocol.FollowRequest{b.tails()})
-			// TODO: wait for ack
-			break
+	for {
+
+		leader, err := websocket.Dial(endpoint, "", origin)
+		if nil != err {
+			log.Warn("Error dailling %s: %s", endpoint, err.Error())
+			backoff()
+			continue
 		}
 
-		log.Warn("Error: %s. Retrying ...", err.Error())
-		backoff := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
-		time.Sleep(backoff * time.Millisecond)
+		err = websocket.JSON.Send(leader, protocol.FollowRequest{b.tails()})
+		if nil != err {
+			// TODO: wait for ack
+			log.Warn("Error dailling %s: ", endpoint, err.Error())
+			backoff()
+			continue
+		}
+
+		log.Info("Registered with leader.")
 
 	}
 

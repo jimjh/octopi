@@ -1,5 +1,5 @@
-// Package broker is an executable that launches a single broker instance.
-// Every process may have at most one broker.
+// Package main is an executable that launches a single broker instance.
+// Each process may have at most one broker.
 //
 // Usage:
 //    $> bin/broker --conf=conf.json
@@ -7,12 +7,13 @@
 // Configuration Options:
 //    port:     port number of broker; it will listen for connections on this port
 //    register: host:port of register/leader for this broker to register
+//    log_dir:  path to log directory
+//    role:     launch as leader/follower
 package main
 
 import (
 	"code.google.com/p/go.net/websocket"
 	"flag"
-	"io"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
@@ -23,128 +24,6 @@ import (
 
 // Global broker object - at most one broker per process.
 var broker *brokerimpl.Broker
-
-// producerHandler handles incoming produce requests. Producers may send
-// multiple produce requests on the same persistent connection. The function
-// exits when an `io.EOF` is received on the connection.
-func producerHandler(conn *websocket.Conn) {
-
-	defer conn.Close()
-
-	for {
-
-		var request protocol.ProduceRequest
-
-		err := websocket.JSON.Receive(conn, &request)
-		if err == io.EOF { // graceful shutdown
-			break
-		}
-
-		if nil != err {
-			log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
-			continue
-		}
-
-		log.Info("Received produce request from %v.", conn.RemoteAddr())
-		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
-			log.Error(err.Error())
-			continue
-		}
-
-		ack := protocol.Ack{Status: protocol.SUCCESS}
-		websocket.JSON.Send(conn, &ack)
-
-	}
-
-	log.Info("Closed producer connection from %v.", conn.RemoteAddr())
-
-}
-
-// consumerHandler handles incoming subscribe requests. Consumers may send
-// multiple subscribe requests on the same persistent connection. However,
-// consumers may only subscribe to the same topic once. The function exits when
-// an `io.EOF` is received on the connection.
-func consumerHandler(conn *websocket.Conn) {
-
-	defer conn.Close()
-	subscriptions := make(map[string]*brokerimpl.Subscription)
-
-	for {
-
-		var request protocol.SubscribeRequest
-
-		err := websocket.JSON.Receive(conn, &request)
-		if err == io.EOF { // graceful shutdown
-			break
-		}
-
-		if nil != err {
-			log.Warn("Ignoring invalid message from %v.",
-				conn.RemoteAddr())
-			continue
-		}
-
-		if _, exists := subscriptions[request.Topic]; exists {
-			log.Warn("Ignoring duplicate subscribe request from %v.",
-				conn.RemoteAddr())
-			continue
-		}
-
-		log.Info("Received subscribe request from %v with offset %d.",
-			conn.RemoteAddr(), request.Offset)
-
-		subscription, err := broker.Subscribe(conn, request.Topic, request.Offset)
-		if nil != err {
-			log.Error(err.Error())
-			continue
-		}
-
-		subscriptions[request.Topic] = subscription
-		ack := protocol.Ack{Status: protocol.SUCCESS}
-		websocket.JSON.Send(conn, &ack)
-
-		go subscription.Serve()
-
-	}
-
-	log.Info("Closed consumer connection from %v.", conn.RemoteAddr())
-
-	// delete all subscriptions
-	for topic, subscription := range subscriptions {
-		broker.Unsubscribe(topic, subscription)
-	}
-
-}
-
-// followerHandler handles incoming follow requests.
-func followerHandler(ws *websocket.Conn) {
-
-	defer ws.Close()
-
-	var request protocol.FollowRequest
-	if nil != websocket.JSON.Receive(ws, &request) {
-		return
-	}
-
-	log.Info("Received follow request from %v.", ws.RemoteAddr())
-
-	// conn := &protocol.Follower{ws}
-	// TODO: broker.RegisterFollower(conn, request.Offsets)
-	// err = websocket.JSON.Send(ws, protocol.FollowACK{})
-
-	// deal with sync
-	/*for {
-		var ack protocol.SyncACK
-		err := websocket.JSON.Receive(ws, &ack)
-		if err == io.EOF {
-			break
-		}
-		broker.SyncFollower(conn, ack)
-	}
-
-	broker.DeleteFollower(conn)*/
-
-}
 
 // main starts a broker instance.
 // Configuration Options:
@@ -183,13 +62,13 @@ func main() {
 }
 
 // listenHttp starts a http server at the given port and listens for incoming
-// websocket message.
+// websocket messages.
 func listenHttp(port int) {
-	http.Handle("/"+protocol.PUBLISH, websocket.Handler(producerHandler))
-	http.Handle("/"+protocol.FOLLOW, websocket.Handler(followerHandler))
-	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
+	http.Handle("/"+protocol.PUBLISH, websocket.Handler(producer))
+	http.Handle("/"+protocol.FOLLOW, websocket.Handler(follower))
+	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumer))
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
-	log.Info("Listening on %d ...", port)
+	log.Info("HTTP server started on %d.", port)
 }
 
 // checkError logs a fatal error message and exits if `err` is not nil.
