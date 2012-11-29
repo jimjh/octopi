@@ -13,6 +13,7 @@ import (
 func follower(conn *websocket.Conn) {
 
 	defer conn.Close()
+	defer log.Info("Connection with follower closed.")
 
 	var request protocol.FollowRequest
 	if nil != websocket.JSON.Receive(conn, &request) {

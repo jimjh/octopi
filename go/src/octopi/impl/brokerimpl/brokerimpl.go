@@ -120,7 +120,7 @@ func (b *Broker) register(hostport string) {
 		// TODO: wait for ack
 		log.Info("Registered with leader.")
 
-		b.catchUp()
+		go b.catchUp()
 		break
 
 	}

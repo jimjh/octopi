@@ -31,8 +31,8 @@ type FollowRequest struct {
 // Syncs are sent from leaders to followers.
 type Sync struct {
 	Topic     string  // topic
-	RequestId []byte  // sha256 of producer seqnum
 	Message   Message // message
+	RequestId []byte  // sha256 of producer seqnum
 }
 
 // SyncACKs are sent from followers to leaders after receiving sync messages

@@ -4,6 +4,8 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"octopi/api/protocol"
+	"octopi/util/log"
+	"sync"
 )
 
 // Subscribe creates a new subscription for the given consumer connection.
@@ -79,12 +81,63 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 		return err
 	}
 
-	err = file.Append(producer, msg)
+	entry, err := file.Append(producer, msg)
 	if nil != err {
 		return err
 	}
 
+	b.replicate(topic, entry)
+
 	b.cond.Broadcast()
 	return nil
+
+}
+
+// replicate  replicates the given log entry across all followers.
+func (b *Broker) replicate(topic string, entry *LogEntry) error {
+
+	// send message to all followers
+	for follower := range b.followers {
+		go func() {
+			sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
+			if err := websocket.JSON.Send(follower.conn, sync); nil != err {
+				// lost
+				b.removeFollower(follower)
+			}
+		}()
+	}
+
+	var group sync.WaitGroup
+
+	// wait for ACK
+	for follower := range b.followers {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			var ack protocol.SyncACK
+			if err := websocket.JSON.Receive(follower.conn, &ack); nil != err {
+				// lost
+				b.removeFollower(follower)
+			}
+		}()
+	}
+
+	group.Wait()
+	return nil
+
+}
+
+// removeFollower disconnects follower from followers set.
+func (b *Broker) removeFollower(follower *Follower) {
+
+	_, exists := b.followers[follower]
+	if !exists {
+		return
+	}
+
+	delete(b.followers, follower)
+	follower.quit <- nil
+
+	log.Info("Removed follower %p from follower set.", follower)
 
 }

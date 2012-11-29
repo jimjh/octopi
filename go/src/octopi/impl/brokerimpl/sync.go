@@ -9,15 +9,20 @@ import (
 )
 
 type Follower struct {
-	conn  *websocket.Conn // open connection
-	tails Offsets         // tails of log files
+	conn  *websocket.Conn  // open connection
+	tails Offsets          // tails of log files
+	quit  chan interface{} // quit channel
 }
 
 // SyncFollower streams updates to a follower through the given connection.
 // Once the follower has fully caught it, add it to the follower set.
 func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets) error {
 
-	follower := &Follower{conn, tails}
+	follower := &Follower{
+		conn:  conn,
+		tails: tails,
+		quit:  make(chan interface{}, 1),
+	}
 
 	log.Debug("Begin synchronizing follower.")
 	for !follower.caughtUp(b) {
@@ -27,6 +32,8 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets) error {
 	}
 
 	log.Info("Follower has fully caught up.")
+
+	<-follower.quit
 	return nil
 
 }
@@ -98,7 +105,8 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 		}
 
 		// send to follower
-		sync := &protocol.Sync{topic, entry.RequestId, entry.Message}
+		sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
+		log.Debug("Wrote %v.", sync)
 		if err = websocket.JSON.Send(f.conn, sync); nil != err {
 			return err
 		}
@@ -125,6 +133,9 @@ func (b *Broker) catchUp() error {
 
 	write := func(request *protocol.Sync) (int64, error) {
 
+		b.lock.Lock()
+		defer b.lock.Unlock()
+
 		file, err := b.getOrOpenLog(request.Topic)
 		if nil != err {
 			return 0, err
@@ -148,6 +159,7 @@ func (b *Broker) catchUp() error {
 
 		var request protocol.Sync
 		err := websocket.JSON.Receive(b.leader, &request)
+		log.Debug("Received %v.", request)
 
 		switch err {
 		case nil:
@@ -159,6 +171,7 @@ func (b *Broker) catchUp() error {
 			if nil != websocket.JSON.Send(b.leader, ack) {
 				log.Warn("Unable to ack leader.")
 			}
+			b.cond.Broadcast()
 		case io.EOF:
 			log.Error("Connection with leader lost.")
 			return err
