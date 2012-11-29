@@ -17,7 +17,8 @@ const (
 // Status codes
 const (
 	SUCCESS  = 200 // successful operation
-	REDIRECT = 304 // redirect to attached host:port
+	REDIRECT = 320 // redirect to attached host:port
+	NOTREADY = 350 // status is not ready (used in register)
 	FAILURE  = 400 // failed operation
 )
 
@@ -53,9 +54,6 @@ type FollowACK struct {
 
 // Hostports are string representations of hostports
 type Hostport string
-
-// URLs are string representations of websocket URLs
-type URL string
 
 // InsyncChanges are used by Leaders to contact the register whether
 // to add or remove a hostport from the list of in-sync followers

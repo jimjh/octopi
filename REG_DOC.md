@@ -21,7 +21,7 @@ individual followers deterministically find out who is leader
 1. Set leader connection to nil
 2. Wait for leader connection and set leader status
 3. From now on, reject connections to leaderHandler if leader status is not nil (i.e. when leader is still alive)
-4. Followers contact register via consumerHandler and register redirects them to the leader
+4. Followers contact register via followerHandler and register redirects them to the leader
 
 #On leader failure:
 1. Set leader to nil
