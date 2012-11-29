@@ -4,6 +4,8 @@ go/src/code.google.com/**
 go/src/bitbucket.org/**
 
 doc/**
+tmp/**
+tmp*/**
 
 .DS_Store
 

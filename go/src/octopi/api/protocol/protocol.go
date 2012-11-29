@@ -3,15 +3,13 @@
 // TODO: versioning.
 package protocol
 
-import (
-	"code.google.com/p/go.net/websocket"
-)
+import ()
 
 // URL endpoints
 const (
 	PUBLISH   = "publish"   // producer -> broker
 	SUBSCRIBE = "subscribe" // consumer -> broker
-	FOLLOW    = "follow"
+	FOLLOW    = "follow"    // follower -> leader
 )
 
 // Status codes
@@ -36,11 +34,7 @@ const (
 
 // Max number of milliseconds between retries.
 // TODO: move this to a configuration file
-var MAX_RETRY_INTERVAL = 2000
-
-type Follower struct {
-	Conn *websocket.Conn
-}
+const MAX_RETRY_INTERVAL = 2000
 
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
@@ -62,12 +56,11 @@ type InsyncChange struct {
 	Hostport Hostport
 }
 
-// SyncRequests are sent from leaders to followers asking them to write
-// to log.
-type SyncRequest struct {
-	Type    int
-	Topic   string
-	Message []byte //can be the highwatermark if used as commit
+// Syncs are sent from leaders to followers.
+type Sync struct {
+	Topic     string  // topic
+	Message   Message // message
+	RequestId []byte  // sha256 of producer seqnum
 }
 
 // SyncACKs are sent from followers to leaders after receiving sync messages
