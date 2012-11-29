@@ -5,6 +5,7 @@ go/src/bitbucket.org/**
 
 doc/**
 tmp/**
+tmp*/**
 
 .DS_Store
 
