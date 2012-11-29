@@ -74,15 +74,9 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	var err error
-	file, exists := b.logs[topic]
-	if !exists {
-		file, err = OpenLog(b.config, topic, -1)
-		if nil != err {
-			return err
-		} else {
-			b.logs[topic] = file
-		}
+	file, err := b.getOrOpenLog(topic)
+	if nil != err {
+		return err
 	}
 
 	err = file.Append(producer, msg)

@@ -6,7 +6,10 @@ import (
 	"octopi/util/log"
 )
 
-// follower handles incoming follow requests.
+// follower handles incoming follow requests. Followers inform leader of the
+// sizes (or offsets) of their log files, and the leader will stream updates to
+// them. Followers that have fully caught up will be added to the leader's
+// follower set.
 func follower(conn *websocket.Conn) {
 
 	defer conn.Close()
@@ -19,20 +22,9 @@ func follower(conn *websocket.Conn) {
 
 	log.Info("Received follow request from %v.", conn.RemoteAddr())
 
-	// conn := &protocol.Follower{conn}
-	// TODO: broker.RegisterFollower(conn, request.Offsets)
+	// TODO: ACK follow request
 	// err = websocket.JSON.Send(conn, protocol.FollowACK{})
 
-	// deal with sync
-	/*for {
-		var ack protocol.SyncACK
-		err := websocket.JSON.Receive(ws, &ack)
-		if err == io.EOF {
-			break
-		}
-		broker.SyncFollower(conn, ack)
-	}
-
-	broker.DeleteFollower(conn)*/
+	broker.SyncFollower(conn, request.Offsets) // blocks
 
 }
