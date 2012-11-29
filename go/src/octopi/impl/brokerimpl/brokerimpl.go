@@ -81,6 +81,7 @@ func (b *Broker) initLogs() {
 		}
 
 		b.logs[topic] = file
+		log.Info("Found log file for %s.", topic)
 
 	}
 

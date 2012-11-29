@@ -15,23 +15,39 @@ type Follower struct {
 
 // SyncFollower streams updates to a follower through the given connection.
 // Once the follower has fully caught it, add it to the follower set.
-func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets) {
+func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets) error {
 
 	follower := &Follower{conn, tails}
 
 	log.Debug("Begin synchronizing follower.")
-	// for !follower.caughtUp(b) {
-	// TODO: use cond var to determine fully sync'ed
-	// TODO: return follower
-	follower.catchUp(b)
-	// }
+	for !follower.caughtUp(b) {
+		if err := follower.catchUp(b); nil != err {
+			return err
+		}
+	}
+
+	log.Info("Follower has fully caught up.")
+	return nil
 
 }
 
 // caughtUp checks if the follower has really caught up, and adds it to the
 // broker's follower set.
 func (f *Follower) caughtUp(broker *Broker) bool {
-	return false
+
+	broker.lock.Lock()
+	defer broker.lock.Unlock()
+
+	expected := broker.tails()
+	for topic, offset := range expected {
+		if offset != f.tails[topic] {
+			return false
+		}
+	}
+
+	broker.followers[f] = true
+	return true
+
 }
 
 // catchUp tries to catch up the follower's log files with the leader's.
@@ -87,6 +103,14 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 			return err
 		}
 
+		// wait for ack
+		var ack protocol.SyncACK
+		if err = websocket.JSON.Receive(f.conn, &ack); nil != err {
+			return err
+		}
+
+		f.tails[topic] = ack.Offset
+
 	}
 
 	return nil
@@ -97,15 +121,26 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 func (b *Broker) catchUp() error {
 
 	// TODO: what if leader dies while follower is catching up?
-	write := func(request *protocol.Sync) error {
+	// FIXME: check for dups in the log
+
+	write := func(request *protocol.Sync) (int64, error) {
 
 		file, err := b.getOrOpenLog(request.Topic)
 		if nil != err {
-			return err
+			return 0, err
 		}
 
 		entry := &LogEntry{request.Message, request.RequestId}
-		return file.WriteNext(entry)
+		if err = file.WriteNext(entry); nil != err {
+			return 0, err
+		}
+
+		stat, err := file.Stat()
+		if nil != err {
+			return 0, err
+		}
+
+		return stat.Size(), nil
 
 	}
 
@@ -116,8 +151,13 @@ func (b *Broker) catchUp() error {
 
 		switch err {
 		case nil:
-			if err := write(&request); nil != err {
+			offset, err := write(&request)
+			if nil != err {
 				log.Warn("Unable to open log file for %s.", request.Topic)
+			}
+			ack := &protocol.SyncACK{request.Topic, offset}
+			if nil != websocket.JSON.Send(b.leader, ack) {
+				log.Warn("Unable to ack leader.")
 			}
 		case io.EOF:
 			log.Error("Connection with leader lost.")
