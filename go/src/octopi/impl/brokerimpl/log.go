@@ -26,12 +26,15 @@ type LogEntry struct {
 }
 
 // Default file permission.
-var PERM os.FileMode = 0666
+const PERM os.FileMode = 0666
+
+// Log file extension.
+const EXT = ".ocp"
 
 // NewLog creates/opens a log file with a new file pointer.
 func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
-	name := path.Join(config.LogDir(), topic)
+	name := path.Join(config.LogDir(), topic+EXT)
 	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, PERM)
 	if nil != err {
 		return nil, err
@@ -97,14 +100,15 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 }
 
 // Appends the given message from the given producer to the log.
-func (log *Log) Append(producer string, message *protocol.Message) error {
+func (log *Log) Append(producer string,
+	message *protocol.Message) (*LogEntry, error) {
 
 	requeststr := fmt.Sprintf("%s:%d", producer, message.ID)
 	hasher := sha256.New()
 	hasher.Write([]byte(requeststr))
 
 	entry := &LogEntry{*message, hasher.Sum(nil)}
-	return log.WriteNext(entry)
+	return entry, log.WriteNext(entry)
 
 }
 
@@ -183,10 +187,7 @@ func (entry *LogEntry) decode(buffer []byte) error {
 	}
 
 	// read request ID
-	err = binary.Read(reader, binary.LittleEndian, &entry.RequestId)
-	if nil != err {
-		return err
-	}
+	entry.RequestId = buffer[4:36]
 
 	// read payload
 	entry.Payload = buffer[36:]
@@ -224,7 +225,7 @@ func (entry *LogEntry) validate() error {
 	if entry.Checksum == expected {
 		return nil
 	}
-	return errors.New(fmt.Sprintf("Invalid checksum. Expected %d, was %d.", expected, entry.Checksum))
+	return errors.New(fmt.Sprintf("Invalid checksum. Expected %d, was %d. Data was %v.", expected, entry.Checksum, entry.Payload))
 }
 
 // length returns the length of the entry's encoding in the log file.

@@ -10,10 +10,9 @@ import (
 // a go channel that relays messages to the consumer.
 type Subscription struct {
 	broker *Broker
-	topic  string           // topic
-	conn   *websocket.Conn  // consumer websocket connection
-	log    *Log             // broker log
-	send   chan interface{} // <- a new msg is available
+	conn   *websocket.Conn // consumer websocket connection
+	log    *Log            // broker log
+	quit   chan interface{}
 }
 
 // NewSubscription creates a new subscription for the given topic. Messages are
@@ -31,47 +30,56 @@ func NewSubscription(
 
 	return &Subscription{
 		broker: broker,
-		topic:  topic,
 		conn:   conn,
 		log:    log,
-		send:   make(chan interface{}, 1),
+		quit:   make(chan interface{}, 1),
 	}, nil
 
 }
 
-// Serve blocks until either the websocket connection or channel is closed.
-// This method may only be invoked once; after it returns, the subscription is
-// closed.
+// Serve blocks until either the websocket connection is closed, or until a
+// message is received on the `quit` channel. This method may be invoked at
+// most once; after it returns, the subscription is closed.
 func (s *Subscription) Serve() error {
 
-	/*var err error
-	for message := range s.send {
-		err = websocket.JSON.Send(s.conn, message)
-		if nil != err {
-			break
-		}
-	}*/
+	defer s.log.Close()
+	defer log.Debug("Stopped serving subscription %p.", s)
 
-	var err error
-	for nil == err {
-		entry, err := s.log.ReadNext()
-		switch err {
-		case nil: // send to consumer
-			err = websocket.JSON.Send(s.conn, &entry.Message)
-		case io.EOF: // wait for ping
-			log.Warn("Reached end of log.")
-			if s.broker.wait(s) { // XXX: fragile; change to condvar
-				<-s.send
+	for {
+		select {
+		case <-s.quit:
+			return nil
+		default:
+			if err := s.next(); nil != err {
+				log.Error("Unable to read from log: ", err.Error())
+				return err
 			}
-		default: // abort
-			log.Error("Error reading from log: ", err.Error())
-			break
 		}
 	}
 
-	log.Debug("Stopped serving subscription %p.", s)
+	return nil
 
-	s.log.Close()
-	return err
+}
+
+// next reads the next message from the associated log file. When it reaches
+// the end of the file, it waits (using a conditional variable) for more
+// messages from the broker. As a consequence of this design, a waiting
+// subscription cannot be closed until a new message is published, waking it
+// up. Returns nil or associated error.
+func (s *Subscription) next() error {
+
+	entry, err := s.log.ReadNext()
+
+	switch err {
+	case nil:
+	case io.EOF: // wait for more
+		log.Debug("Reached end of log.")
+		s.broker.wait(s)
+		return nil
+	default: // abort
+		return err
+	}
+
+	return websocket.JSON.Send(s.conn, &entry.Message)
 
 }
