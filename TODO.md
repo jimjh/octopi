@@ -1,6 +1,3 @@
-## Configuration
-- unit tests
-
 ## Consumer
 + Implement close
 + Failures and error handling
