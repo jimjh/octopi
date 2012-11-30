@@ -60,9 +60,11 @@ func New(options *config.Config) *Broker {
 	// THESE ARE NOT BRUTE FORCE SPIN LOOPS
 	// THESE ARE SIMPLY RE-TRIES WITH WAITS INBETWEEN
 	if FOLLOWER == b.config.Role() {
-		for !b.register(b.config.Register()) {}
-	} else{
-		for b.becomeleader(b.config.Register())!=nil{}
+		for !b.register(b.config.Register()) {
+		}
+	} else {
+		for b.becomeleader(b.config.Register()) != nil {
+		}
 	}
 
 	return b
@@ -113,18 +115,18 @@ func (b *Broker) becomeleader(hostport string) error {
 	origin := b.Origin()
 
 	for {
-                // dial the register
-                b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+		// dial the register
+		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
 
-                // failed to dial the register
-                // backoff and try again
-                if nil != err {
-                        log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
-                        backoff()
-                        continue
-                }
-                break
-        }
+		// failed to dial the register
+		// backoff and try again
+		if nil != err {
+			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
+			backoff()
+			continue
+		}
+		break
+	}
 	err = websocket.JSON.Send(b.regConn, b.myHostPort)
 	return err
 }
@@ -248,8 +250,8 @@ func checkError(err error) {
 	}
 }
 
-func backoff(){
-        duration := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
-        log.Debug("Backing off %d milliseconds.", duration)
-        time.Sleep(duration * time.Millisecond)
+func backoff() {
+	duration := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
+	log.Debug("Backing off %d milliseconds.", duration)
+	time.Sleep(duration * time.Millisecond)
 }
