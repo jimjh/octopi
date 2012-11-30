@@ -49,7 +49,7 @@ func main() {
 	checkError(err)
 
 	log.Info("Initializing broker with options from %s.", *configFile)
-	log.Info("Options read were: %v", config.Options)
+	log.Info("Options read were: %v", config)
 
 	port, err := strconv.Atoi(config.Get("port", "5050"))
 	checkError(err)

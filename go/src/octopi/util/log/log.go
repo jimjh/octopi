@@ -1,9 +1,7 @@
-// log implements a simple logger that adds severity levels and colors to the
-// official log package. It also has a predefined standard logger, which is
-// easier to use than creating a Logger manually. The Fatal functions call
-// os.Exit(1) after writing the log message. The Panic functions call panic
-// after writing the log message.
-
+// Package log implements a simple logger with severity levels and colors. It
+// also has a predefined standard logger, which is easier to use than creating
+// a Logger manually. The Fatal functions call os.Exit(1) after writing the log
+// message. The Panic functions call panic after writing the log message.
 package log
 
 import (
@@ -13,7 +11,7 @@ import (
 	"os"
 )
 
-// Severity Levels
+// Severity levels
 const (
 	DEBUG = iota
 	INFO
@@ -23,6 +21,7 @@ const (
 	FATAL
 )
 
+// Output colors
 const (
 	FG_GREEN   = "\x1b[32m"
 	FG_YELLOW  = "\x1b[33m"
@@ -38,7 +37,7 @@ type Logger struct {
 }
 
 // Default severity level
-var DEFAULT_SEVERITY int = WARN
+const DEFAULT_SEVERITY int = WARN
 
 // New creates a new Logger. The out variable sets the destination to which log
 // data will be written. The prefix appears at the beginning of each generated

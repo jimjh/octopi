@@ -1,5 +1,6 @@
-// Package config provides some utility methods for reading configuration
-// files. Strings only; single-level JSON only.
+// Package config provides some utility methods for reading options from
+// configuration files. The current implementation only supports a single-level
+// JSON object whose values are all strings.
 //
 // Example:
 //    {
@@ -15,12 +16,12 @@ import (
 	"io/ioutil"
 )
 
-// Configuration represents a set of configuration options.
+// Config represents a set of configuration options.
 type Config struct {
-	Options map[string]string
+	Options map[string]string // key-value option pairs
 }
 
-// Init initializes a configuration struct from the given JSON file.
+// Init initializes a config struct from the given JSON file.
 //
 // Example:
 //    config := c.Init("conf.json")

@@ -76,7 +76,7 @@ func leaderHandler(ws *websocket.Conn) {
 	}
 }
 
-// redirectHandler handles connections from new followers 
+// redirectHandler handles connections from new followers
 // joining the system or from producers wanting to publish
 // a topic. ACK the new follower/producer with a redirect
 // if a leader is determined. if not, disconnects.
@@ -121,7 +121,7 @@ func main() {
 	checkError(err)
 
 	log.Info("Initializing register with options from %s.", *configFile)
-	log.Info("Options read were: %v", config.Options)
+	log.Info("Options read were: %v", config)
 
 	port, err := strconv.Atoi(config.Get("port", "12345"))
 	checkError(err)

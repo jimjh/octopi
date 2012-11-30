@@ -1,7 +1,5 @@
-## Protocol
-- Switch away from JSON to msgpack to allow binary data to allow streaming
-  image, videos, and other binary messages.
-+ Configuration file
+## Configuration
+- unit tests
 
 ## Consumer
 + Implement close
@@ -35,6 +33,7 @@
   - what if leader dies while follower is catching up?
 - CRC32 checksum verification in broker
 - Ignore duplicates
+- Ignore produce requests if not leader
 - Robust logging and recovery
 - Switch to cond vars for Produce method to wait for enough FollowerACKs
 - Ack producer requests
