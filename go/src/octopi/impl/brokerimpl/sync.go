@@ -3,6 +3,7 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"io"
+	"net"
 	"octopi/api/protocol"
 	"octopi/util/log"
 	"sync"
@@ -25,6 +26,20 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 		hostport: hostport,
 		quit:     make(chan interface{}, 1),
 	}
+
+	b.lock.Lock()
+	var ack protocol.FollowACK
+	if nil != b.checkpoints {
+		ack.Truncate = make(Offsets)
+		for topic, checkpoint := range b.checkpoints {
+			if tails[topic] > checkpoint {
+				ack.Truncate[topic] = checkpoint
+				tails[topic] = checkpoint
+			}
+		}
+	}
+	websocket.JSON.Send(conn, ack)
+	b.lock.Unlock()
 
 	log.Debug("Begin synchronizing follower.")
 	for !follower.caughtUp(b) {
@@ -190,7 +205,11 @@ func (b *Broker) catchUp() error {
 			log.Error("Connection with leader lost.")
 			return err
 		default:
-			log.Error("Ignoring invalid message from leader: %s.", err.Error())
+			e, ok := err.(net.Error)
+			if ok && !e.Temporary() {
+				return err
+			}
+			log.Error("Ignoring invalid message from leader:", err)
 		}
 
 	}

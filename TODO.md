@@ -41,7 +41,7 @@
 - Implement redirects
 - Implement timer flush
 
-## Register
+- write generic function in go that opens connections and follows redirects
 
 - documentation
 - demo app

@@ -55,7 +55,6 @@ func main() {
 	checkError(err)
 
 	broker = brokerimpl.New(config)
-	// TODO: go broker.HandleMessages()
 
 	listenHttp(port)
 
@@ -68,8 +67,8 @@ func listenHttp(port int) {
 	http.Handle("/"+protocol.FOLLOW, websocket.Handler(follower))
 	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumer))
 	http.Handle("/"+protocol.REGISTER, websocket.Handler(register))
-	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	log.Info("HTTP server started on %d.", port)
+	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 
 // checkError logs a fatal error message and exits if `err` is not nil.

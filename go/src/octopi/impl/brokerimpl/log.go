@@ -31,7 +31,7 @@ const PERM os.FileMode = 0666
 // Log file extension.
 const EXT = ".ocp"
 
-// NewLog creates/opens a log file with a new file pointer.
+// OpenLog creates/opens a log file with a new file pointer.
 func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
 	name := path.Join(config.LogDir(), topic+EXT)
@@ -52,6 +52,12 @@ func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
 	return &Log{*file}, nil
 
+}
+
+// TruncateLog truncates log for the given topic at the specified offset.
+func truncateLog(config *Config, topic string, offset int64) error {
+	name := path.Join(config.LogDir(), topic+EXT)
+	return os.Truncate(name, offset)
 }
 
 // Reads the next entry from the broker log.

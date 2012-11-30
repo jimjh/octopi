@@ -23,6 +23,7 @@ type Broker struct {
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
 	leader        *websocket.Conn            // connection to the leader
+	checkpoints   map[string]int64           // checkpoints for each topic log
 	regConn       *websocket.Conn            // connection to the register, used by leader
 	port          int                        // port number of this broker
 	lock          sync.Mutex                 // lock to manage broker access
@@ -60,9 +61,10 @@ func New(options *config.Config) *Broker {
 	// THESE ARE NOT BRUTE FORCE SPIN LOOPS
 	// THESE ARE SIMPLY RE-TRIES WITH WAITS INBETWEEN
 	if FOLLOWER == b.config.Role() {
-		for !b.register(b.config.Register()) {}
-	} else{
-		for b.becomeleader(b.config.Register())!=nil{}
+		for !b.register(b.config.Register()) {
+		}
+	} else {
+		b.BecomeLeader()
 	}
 
 	return b
@@ -71,12 +73,16 @@ func New(options *config.Config) *Broker {
 
 // LeaderClose closes the connection with leader
 func (b *Broker) LeaderClose() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	b.leader.Close()
 }
 
 // Leader change changes the leader connection
-func (b *Broker) LeaderChange(ws *websocket.Conn) {
-	b.leader = ws
+func (b *Broker) LeaderChange(hostport string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.follow(protocol.Hostport(hostport))
 }
 
 // initLogs initializes the logs map.
@@ -107,33 +113,48 @@ func (b *Broker) initLogs() {
 
 }
 
-func (b *Broker) becomeleader(hostport string) error {
+// BecomeLeader returns only after successfully declaring leadership with the
+// register. It locks down the broker, declares leadership with the register,
+// and checkpoints the tails of all open logs.
+func (b *Broker) BecomeLeader() error {
+
 	var err error
-	regEndpoint := "ws://" + hostport + "/" + protocol.LEADER
+	regEndpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
 	origin := b.Origin()
 
-	for {
-                // dial the register
-                b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+	b.lock.Lock()
+	defer b.lock.Unlock()
 
-                // failed to dial the register
-                // backoff and try again
-                if nil != err {
-                        log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
-                        backoff()
-                        continue
-                }
-                break
-        }
-	err = websocket.JSON.Send(b.regConn, b.myHostPort)
-	return err
+	for {
+
+		// contact register
+		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+
+		if nil != err {
+			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
+			backoff()
+			continue
+		}
+
+		err = websocket.JSON.Send(b.regConn, b.myHostPort)
+		if nil != err {
+			backoff()
+			continue
+		}
+
+		break
+
+	}
+
+	b.checkpoints = b.tails()
+	return nil
+
 }
 
 // register sends a follow request to the given leader.
 // TODO: implement redirect.
 func (b *Broker) register(hostport string) bool {
 
-	var err error
 	var leaderHostport protocol.Hostport
 	origin := b.Origin()
 	// establish register endpoint
@@ -166,8 +187,15 @@ func (b *Broker) register(hostport string) bool {
 		break
 	}
 
-	endpoint := "ws://" + leaderHostport + "/" + protocol.FOLLOW
-	b.leader, err = websocket.Dial(string(endpoint), "", origin)
+	return b.follow(leaderHostport)
+
+}
+
+func (b *Broker) follow(leader protocol.Hostport) bool {
+
+	var err error
+	endpoint := "ws://" + leader + "/" + protocol.FOLLOW
+	b.leader, err = websocket.Dial(string(endpoint), "", b.Origin())
 
 	// failed to dial to leader! return false and wait re-try
 	if nil != err {
@@ -183,13 +211,26 @@ func (b *Broker) register(hostport string) bool {
 		return false
 	}
 
-	// TODO: wait for ack
 	log.Info("Registered with leader.")
 
-	// success connection! start catching up!
+	var ack protocol.FollowACK
+	err = websocket.JSON.Receive(b.leader, &ack)
+	if nil != err {
+		return false
+	}
+
+	if nil != ack.Truncate {
+		for topic, checkpoint := range ack.Truncate {
+			truncateLog(b.config, topic, checkpoint)
+		}
+	}
+
+	// successful connection
 	go b.catchUp()
+	log.Info("Catching up.")
 
 	return true
+
 }
 
 // returns the hostport of the current broker
@@ -248,8 +289,8 @@ func checkError(err error) {
 	}
 }
 
-func backoff(){
-        duration := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
-        log.Debug("Backing off %d milliseconds.", duration)
-        time.Sleep(duration * time.Millisecond)
+func backoff() {
+	duration := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
+	log.Debug("Backing off %d milliseconds.", duration)
+	time.Sleep(duration * time.Millisecond)
 }
