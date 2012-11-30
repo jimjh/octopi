@@ -32,7 +32,8 @@ const (
 // Max number of milliseconds between retries.
 const MAX_RETRY_INTERVAL = 2000
 
-// FollowRequests are sent by brokers to registers/leaders.
+// FollowRequests are sent by brokers to registers/leaders when they wish to
+// join the broker set.
 type FollowRequest struct {
 	Offsets  map[string]int64 // high watermarks of each topic log
 	HostPort HostPort         // hostport of the follower
@@ -44,7 +45,7 @@ type FollowACK struct {
 	Truncate map[string]int64
 }
 
-// Hostports are string representations of hostports
+// Hostports are string representations of TCP addresses.
 type HostPort string
 
 // InsyncChanges are used by Leaders to contact the register whether
@@ -91,7 +92,6 @@ type SubscribeRequest struct {
 
 // Messages sent from producers to brokers; the enclosed payload is broadcast
 // to all consumers subscribing to the topic.
-// XXX: do we need ID?
 type Message struct {
 	ID       int64  // seq num from producer, or offset from broker
 	Payload  []byte // message contents
