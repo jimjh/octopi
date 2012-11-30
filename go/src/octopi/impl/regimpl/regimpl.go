@@ -61,7 +61,7 @@ func (r *Register) LeaderDisconnect() {
 
 	r.lock.Unlock()
 
-	// notify all followers with the same set for consistency 
+	// notify all followers with the same set for consistency
 	// and only remove from original set if fail to contact
 	for hp, _ := range tmpSet {
 		go r.notifyFollower(hp, tmpSet)
@@ -69,7 +69,7 @@ func (r *Register) LeaderDisconnect() {
 }
 
 // CheckNewLeader allows re-sending of disconnect requests
-// every interval until a leader is connected 
+// every interval until a leader is connected
 func (r *Register) CheckNewLeader() {
 	for r.leader == EMPTY {
 		time.Sleep(LEADERWAIT * time.Millisecond)
@@ -79,7 +79,7 @@ func (r *Register) CheckNewLeader() {
 
 // notifyFollowers notifies the followers of a change in leader
 func (r *Register) notifyFollower(follower string, is map[string]bool) {
-	conn, err := websocket.Dial("ws://"+follower+"/"+protocol.REGISTER, "", "http://"+follower+"/")
+	conn, err := websocket.Dial("ws://"+follower+"/"+protocol.SWAP, "", "http://"+follower+"/")
 
 	// failed to contact the follower
 	if nil != err {

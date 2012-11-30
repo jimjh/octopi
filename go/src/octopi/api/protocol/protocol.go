@@ -1,9 +1,6 @@
 // Package protocol defines the protocol that producers, consumers, brokers,
 // and registers will use to communicate with each other.
-// TODO: versioning.
 package protocol
-
-import ()
 
 // URL endpoints
 const (
@@ -11,7 +8,7 @@ const (
 	PUBLISH   = "publish"   // producer -> broker
 	SUBSCRIBE = "subscribe" // consumer -> broker
 	FOLLOW    = "follow"    // follower -> leader
-	REGISTER  = "register"  // register -> broker
+	SWAP      = "swap"      // register -> broker
 	// for register
 	LEADER     = "leader"     // leader -> register
 	REDIRECTOR = "redirector" // follower or publisher -> leader
