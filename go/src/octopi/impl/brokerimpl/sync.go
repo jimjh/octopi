@@ -12,13 +12,13 @@ import (
 type Follower struct {
 	conn     *websocket.Conn   // open connection
 	tails    Offsets           // tails of log files
-	hostport protocol.Hostport // hostport of the follower
+	hostport protocol.HostPort // hostport of the follower
 	quit     chan interface{}  // quit channel
 }
 
 // SyncFollower streams updates to a follower through the given connection.
 // Once the follower has fully caught it, add it to the follower set.
-func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport protocol.Hostport) error {
+func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport protocol.HostPort) error {
 
 	follower := &Follower{
 		conn:     conn,
@@ -75,7 +75,7 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 	// create struct to communicate with register
 	var addFollow protocol.InsyncChange
 	addFollow.Type = protocol.ADD
-	addFollow.Hostport = f.hostport
+	addFollow.HostPort = f.hostport
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.

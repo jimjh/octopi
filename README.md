@@ -27,5 +27,4 @@ To start a broker,
     $> go install octopi/run/broker
     $> bin/broker
 
-
   [websocket]: http://go.pkgdoc.org/code.google.com/p/go.net/websocket

@@ -1,5 +1,5 @@
 // Package protocol defines the protocol that producers, consumers, brokers,
-// and registers will use to communicate with each other.
+// and registers use to communicate with each other.
 package protocol
 
 // URL endpoints
@@ -23,12 +23,6 @@ const (
 	FAILURE  = 400 // failed operation
 )
 
-// Sync types
-const (
-	UPDATE = iota
-	COMMIT
-)
-
 // Register add or remove a follower
 const (
 	ADD = iota
@@ -36,13 +30,12 @@ const (
 )
 
 // Max number of milliseconds between retries.
-// TODO: move this to a configuration file
 const MAX_RETRY_INTERVAL = 2000
 
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
 	Offsets  map[string]int64 // high watermarks of each topic log
-	Hostport Hostport         // hostport of the follower
+	HostPort HostPort         // hostport of the follower
 }
 
 // FollowACKs are sent from leaders to followers in response to follow
@@ -52,13 +45,13 @@ type FollowACK struct {
 }
 
 // Hostports are string representations of hostports
-type Hostport string
+type HostPort string
 
 // InsyncChanges are used by Leaders to contact the register whether
 // to add or remove a hostport from the list of in-sync followers
 type InsyncChange struct {
 	Type     int
-	Hostport Hostport
+	HostPort HostPort
 }
 
 // Syncs are sent from leaders to followers.

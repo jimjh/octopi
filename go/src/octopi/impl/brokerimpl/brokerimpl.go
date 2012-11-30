@@ -18,7 +18,7 @@ import (
 // and the others are followers.
 type Broker struct {
 	config        *Config
-	myHostPort    protocol.Hostport
+	myHostPort    protocol.HostPort
 	followers     map[*Follower]bool         // set of followers
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
@@ -49,7 +49,7 @@ func New(options *config.Config) *Broker {
 
 	b := &Broker{
 		config:        &Config{*options},
-		myHostPort:    protocol.Hostport(host + ":" + port),
+		myHostPort:    protocol.HostPort(host + ":" + port),
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
@@ -82,7 +82,7 @@ func (b *Broker) LeaderClose() {
 func (b *Broker) LeaderChange(hostport string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.follow(protocol.Hostport(hostport))
+	b.follow(protocol.HostPort(hostport))
 }
 
 // initLogs initializes the logs map.
@@ -158,7 +158,7 @@ func (b *Broker) BecomeLeader() error {
 // TODO: implement redirect.
 func (b *Broker) register(hostport string) bool {
 
-	var leaderHostport protocol.Hostport
+	var leaderHostport protocol.HostPort
 	origin := b.Origin()
 	// establish register endpoint
 	regEndpoint := "ws://" + hostport + "/" + protocol.REDIRECTOR
@@ -184,7 +184,7 @@ func (b *Broker) register(hostport string) bool {
 			continue
 		}
 
-		leaderHostport = protocol.Hostport(redirect.HostPort)
+		leaderHostport = protocol.HostPort(redirect.HostPort)
 
 		regConn.Close()
 		break
@@ -194,7 +194,7 @@ func (b *Broker) register(hostport string) bool {
 
 }
 
-func (b *Broker) follow(leader protocol.Hostport) bool {
+func (b *Broker) follow(leader protocol.HostPort) bool {
 
 	var err error
 	endpoint := "ws://" + leader + "/" + protocol.FOLLOW

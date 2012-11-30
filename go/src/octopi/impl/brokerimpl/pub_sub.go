@@ -140,7 +140,7 @@ func (b *Broker) removeFollower(follower *Follower) {
 	// create struct to communicate with register
 	var removeFollow protocol.InsyncChange
 	removeFollow.Type = protocol.REMOVE
-	removeFollow.Hostport = follower.hostport
+	removeFollow.HostPort = follower.hostport
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.

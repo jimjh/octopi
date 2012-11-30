@@ -23,7 +23,7 @@ func follower(conn *websocket.Conn) {
 
 	log.Info("Received follow request from %v.", conn.RemoteAddr())
 
-	if err := broker.SyncFollower(conn, request.Offsets, request.Hostport); nil != err {
+	if err := broker.SyncFollower(conn, request.Offsets, request.HostPort); nil != err {
 		log.Error("Error sync'ing follower: %s", err.Error())
 	}
 

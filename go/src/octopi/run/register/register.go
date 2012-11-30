@@ -32,7 +32,7 @@ func leaderHandler(ws *websocket.Conn) {
 		return
 	}
 
-	var leaderhp protocol.Hostport
+	var leaderhp protocol.HostPort
 	err := websocket.JSON.Receive(ws, &leaderhp)
 
 	if err == io.EOF {
@@ -61,13 +61,13 @@ func leaderHandler(ws *websocket.Conn) {
 		}
 
 		if change.Type == protocol.ADD {
-			log.Info("Leader added an in-sync follower: %v", change.Hostport)
+			log.Info("Leader added an in-sync follower: %v", change.HostPort)
 			// add a new follower
-			register.AddFollower(string(change.Hostport))
+			register.AddFollower(string(change.HostPort))
 		} else if change.Type == protocol.REMOVE {
-			log.Info("Leader removed an in-sync follower: %v", change.Hostport)
+			log.Info("Leader removed an in-sync follower: %v", change.HostPort)
 			// remove a follower
-			register.RemoveFollower(string(change.Hostport))
+			register.RemoveFollower(string(change.HostPort))
 		} else {
 			// ignore invalid message
 			log.Warn("Ignoring invalid message from %v", ws.RemoteAddr())
