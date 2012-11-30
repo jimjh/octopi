@@ -130,6 +130,9 @@ func (b *Broker) BecomeLeader() error {
 		// contact register
 		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
 
+		// dial the register
+		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+
 		if nil != err {
 			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
 			backoff()
