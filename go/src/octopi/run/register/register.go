@@ -13,12 +13,6 @@ import (
 	"sync"
 )
 
-const (
-	LEADER   = "leader"
-	REDIRECT = "redirect"
-	CONSUMER = "consumer"
-)
-
 var register *regimpl.Register
 var handlerLock sync.Mutex
 
@@ -49,7 +43,9 @@ func leaderHandler(ws *websocket.Conn) {
 		return
 	}
 
-	register.SetLeader(leaderhp)
+	log.Info("Received leader request from %v", leaderhp)
+
+	register.SetLeader(string(leaderhp))
 
 	for {
 		var change protocol.InsyncChange
@@ -65,11 +61,13 @@ func leaderHandler(ws *websocket.Conn) {
 		}
 
 		if change.Type == protocol.ADD {
+			log.Info("Leader added an in-sync follower: %v", change.Hostport)
 			// add a new follower
-			register.AddFollower(change.Hostport)
+			register.AddFollower(string(change.Hostport))
 		} else if change.Type == protocol.REMOVE {
+			log.Info("Leader removed an in-sync follower: %v", change.Hostport)
 			// remove a follower
-			register.RemoveFollower(change.Hostport)
+			register.RemoveFollower(string(change.Hostport))
 		} else {
 			// ignore invalid message
 			log.Warn("Ignoring invalid message from %v", ws.RemoteAddr())
@@ -111,6 +109,7 @@ func consumerHandler(ws *websocket.Conn) {
 
 func main() {
 
+	log.SetVerbose(log.DEBUG)
 	log.SetPrefix("register: ")
 
 	// parse command line args
@@ -133,9 +132,9 @@ func main() {
 }
 
 func listenHttp(port int) {
-	http.Handle("/"+LEADER, websocket.Handler(leaderHandler))
-	http.Handle("/"+REDIRECT, websocket.Handler(redirectHandler))
-	http.Handle("/"+CONSUMER, websocket.Handler(consumerHandler))
+	http.Handle("/"+protocol.LEADER, websocket.Handler(leaderHandler))
+	http.Handle("/"+protocol.REDIRECTOR, websocket.Handler(redirectHandler))
+	http.Handle("/"+protocol.CONSUMER, websocket.Handler(consumerHandler))
 
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }

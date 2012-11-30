@@ -9,19 +9,21 @@ import (
 )
 
 type Follower struct {
-	conn  *websocket.Conn  // open connection
-	tails Offsets          // tails of log files
-	quit  chan interface{} // quit channel
+	conn     *websocket.Conn   // open connection
+	tails    Offsets           // tails of log files
+	hostport protocol.Hostport // hostport of the follower
+	quit     chan interface{}  // quit channel
 }
 
 // SyncFollower streams updates to a follower through the given connection.
 // Once the follower has fully caught it, add it to the follower set.
-func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets) error {
+func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport protocol.Hostport) error {
 
 	follower := &Follower{
-		conn:  conn,
-		tails: tails,
-		quit:  make(chan interface{}, 1),
+		conn:     conn,
+		tails:    tails,
+		hostport: hostport,
+		quit:     make(chan interface{}, 1),
 	}
 
 	log.Debug("Begin synchronizing follower.")
@@ -52,7 +54,19 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 		}
 	}
 
+	// add to set of followers
 	broker.followers[f] = true
+
+	// create struct to communicate with register
+	var addFollow protocol.InsyncChange
+	addFollow.Type = protocol.ADD
+	addFollow.Hostport = f.hostport
+
+	// add in-sync follower
+	// check if disconnect from register. if so, exit.
+	err := websocket.JSON.Send(broker.regConn, addFollow)
+	checkError(err)
+
 	return true
 
 }

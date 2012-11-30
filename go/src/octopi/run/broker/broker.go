@@ -67,6 +67,7 @@ func listenHttp(port int) {
 	http.Handle("/"+protocol.PUBLISH, websocket.Handler(producer))
 	http.Handle("/"+protocol.FOLLOW, websocket.Handler(follower))
 	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumer))
+	http.Handle("/"+protocol.REGISTER, websocket.Handler(register))
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	log.Info("HTTP server started on %d.", port)
 }

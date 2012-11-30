@@ -26,7 +26,7 @@ func follower(conn *websocket.Conn) {
 	// TODO: ACK follow request
 	// err = websocket.JSON.Send(conn, protocol.FollowACK{})
 
-	if err := broker.SyncFollower(conn, request.Offsets); nil != err {
+	if err := broker.SyncFollower(conn, request.Offsets, request.Hostport); nil != err {
 		log.Error("Error sync'ing follower: %s", err.Error())
 	}
 

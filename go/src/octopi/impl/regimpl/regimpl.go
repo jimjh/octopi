@@ -18,24 +18,21 @@ const (
 )
 
 type Register struct {
-	leader protocol.Hostport
-	insync InsyncSet
+	leader string
+	insync map[string]bool
 	lock   sync.Mutex
 }
-
-// InsyncSet is an implementation of a set of hostports
-type InsyncSet map[protocol.Hostport]bool
 
 // NewRegister returns a new Register object
 func NewRegister() *Register {
 	reg := &Register{
-		insync: make(InsyncSet),
+		insync: make(map[string]bool),
 	}
 
 	return reg
 }
 
-func (r *Register) Leader() protocol.Hostport {
+func (r *Register) Leader() string {
 	return r.leader
 }
 
@@ -44,7 +41,7 @@ func (r *Register) NoLeader() bool {
 	return r.leader == EMPTY
 }
 
-func (r *Register) SetLeader(hostport protocol.Hostport) {
+func (r *Register) SetLeader(hostport string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.leader = hostport
@@ -56,7 +53,7 @@ func (r *Register) LeaderDisconnect() {
 	r.lock.Lock()
 
 	// create a copy to release lock earlier
-	tmpSet := make(InsyncSet)
+	tmpSet := make(map[string]bool)
 
 	for hp, _ := range r.insync {
 		tmpSet[hp] = true
@@ -81,14 +78,14 @@ func (r *Register) CheckNewLeader() {
 }
 
 // notifyFollowers notifies the followers of a change in leader
-func (r *Register) notifyFollower(follower protocol.Hostport, is InsyncSet) {
-	// TODO: get follower URL
-	conn, err := websocket.Dial("ws://"+string(follower)+"/", "", "")
+func (r *Register) notifyFollower(follower string, is map[string]bool) {
+	conn, err := websocket.Dial("ws://"+follower+"/"+protocol.REGISTER, "", "http://"+follower+"/")
 
 	// failed to contact the follower
 	if nil != err {
 		// remove from follower set
 		r.RemoveFollower(follower)
+		return
 	}
 
 	err = websocket.JSON.Send(conn, is)
@@ -97,28 +94,26 @@ func (r *Register) notifyFollower(follower protocol.Hostport, is InsyncSet) {
 	if nil != err {
 		// remove from follower set
 		r.RemoveFollower(follower)
+		return
 	}
-
-	// done contacting, close connection
-	conn.Close()
 }
 
 // GetInsyncSet returns the list of in-sync followers
-func (r *Register) GetInsyncSet() InsyncSet {
+func (r *Register) GetInsyncSet() map[string]bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	return r.insync
 }
 
 // AddFollower adds a follower to the list of in-sync followers
-func (r *Register) AddFollower(follower protocol.Hostport) {
+func (r *Register) AddFollower(follower string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.insync[follower] = true
 }
 
 // RemoveFollower removes a follower from the list of in-sync followers
-func (r *Register) RemoveFollower(follower protocol.Hostport) {
+func (r *Register) RemoveFollower(follower string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	delete(r.insync, follower)

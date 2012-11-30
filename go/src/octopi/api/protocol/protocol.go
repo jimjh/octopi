@@ -7,9 +7,15 @@ import ()
 
 // URL endpoints
 const (
+	// for brokers
 	PUBLISH   = "publish"   // producer -> broker
 	SUBSCRIBE = "subscribe" // consumer -> broker
 	FOLLOW    = "follow"    // follower -> leader
+	REGISTER  = "register" // register -> broker
+	// for register
+	LEADER = "leader" // leader -> register
+	REDIRECTOR = "redirector" // follower or publisher -> leader
+	CONSUMER = "consumer" // consumer -> follower
 )
 
 // Status codes
@@ -39,6 +45,7 @@ const MAX_RETRY_INTERVAL = 2000
 // FollowRequests are sent by brokers to registers/leaders.
 type FollowRequest struct {
 	Offsets map[string]int64 // high watermarks of each topic log
+	Hostport Hostport // hostport of the follower
 }
 
 // FollowACKs are sent from leaders to followers in response to follow

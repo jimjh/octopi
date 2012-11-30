@@ -136,6 +136,17 @@ func (b *Broker) removeFollower(follower *Follower) {
 	}
 
 	delete(b.followers, follower)
+
+	// create struct to communicate with register
+	var removeFollow protocol.InsyncChange
+	removeFollow.Type = protocol.REMOVE
+	removeFollow.Hostport = follower.hostport
+
+	// add in-sync follower
+	// check if disconnect from register. if so, exit.
+	err := websocket.JSON.Send(b.regConn, removeFollow)
+	checkError(err)
+
 	follower.quit <- nil
 
 	log.Info("Removed follower %p from follower set.", follower)
