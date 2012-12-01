@@ -1,0 +1,8 @@
+{
+  "Options": {
+    "port": "12348",
+    "register": "localhost:12345",
+    "log_dir": "../tmp-follower3",
+    "role": "follower"
+  }
+}

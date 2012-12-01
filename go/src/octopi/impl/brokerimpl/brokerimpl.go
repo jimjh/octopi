@@ -126,10 +126,6 @@ func (b *Broker) BecomeLeader() error {
 	defer b.lock.Unlock()
 
 	for {
-
-		// contact register
-		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
-
 		// dial the register
 		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
 
