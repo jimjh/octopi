@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
+	./register -conf="${CONFIG_PATH}/reg.json" &>~/dev/null &
 	REG_PID=$!
 	sleep 5
 }
@@ -49,7 +49,8 @@ function startLeader {
 
 # startFollowers starts the followers in the background
 function startFollowers {
-	if [ $N -eq 0 ]; then
+	if [ $N -eq 0 ]
+	then
 		return
 	fi
 	for i in `jot ${N} 1`
@@ -101,6 +102,37 @@ function killAll {
 	killFollowers
 }
 
+function passFail() {
+	if [ $1 -eq 0 ]
+        then
+		PASS_COUNT=$((PASS_COUNT+1))
+                echo "PASS"     
+        else
+                echo "FAIL"
+        fi
+}
+
+function checkLogs {
+        cd $BIN_PATH
+        cd ../tmp
+        TMP_PATH=$(pwd)
+        for i in `jot ${N} 1`
+        do
+                shopt -s nullglob
+                for f in $TMP_PATH/*
+                do
+                        fname=$(basename "$f")
+                        diff $f ../tmp-follower${i}/$fname
+                        if [ $? -ne 0 ] ; then
+                                cd $BIN_PATH
+                                return 1
+                        fi
+                done
+        done
+        cd $BIN_PATH
+        return 0
+}
+
 function testOneLeader {
 	echo "Starting testOneLeader..."
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
@@ -111,39 +143,11 @@ function testOneLeader {
 	# Let followers be in-sync with leader
 	sleep 3
 	./stupidproducer &>/dev/null
-	if [ $? -eq 0 ]
-	then
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"	
-	else
-		echo "FAIL"
-	fi
+	passFail $?
 	# Let transactions be complete
 	sleep 3
 	killAll
 	clearLogs
-}
-
-function checkLogs {
-	cd $BIN_PATH
-	cd ../tmp
-	TMP_PATH=$(pwd)
-	for i in `jot ${N} 1`
-        do
-		shopt -s nullglob
-		for f in $TMP_PATH/*
-		do
-			fname=$(basename "$f")
-                	diff $f ../tmp-follower${i}/$fname
-                	if [ $? -ne 0 ] ; then
-                        	echo "FAIL"
-				cd $BIN_PATH
-                        	return 1
-                	fi
-		done
-        done
-	cd $BIN_PATH
-	return 0
 }
 
 function testFollowers {
@@ -158,19 +162,14 @@ function testFollowers {
 	if [ $? -ne 0 ]
 	then
 		echo "FAIL"
-		cleanUp
+		killAll
+		clearLogs
 		return
 	fi
 	sleep 3
 	killAll
 	checkLogs
-	if [ $? -ne 0 ];
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
@@ -187,13 +186,7 @@ function testRegisterSlowStart {
 	sleep 3
 	killAll
 	checkLogs
-	if [ $? -ne 0 ];
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
@@ -210,13 +203,7 @@ function testLeaderSlowStart {
 	sleep 3
 	killAll
 	checkLogs
-	if [ $? -ne 0 ]
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
@@ -235,13 +222,7 @@ function testAlternatingProducers {
 	sleep 3
 	killAll
 	checkLogs
-	if [ $? -ne 0 ]
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
@@ -260,13 +241,7 @@ function testConcurrentProducers {
 	sleep 5
 	killAll
 	checkLogs
-	if [ $? -ne 0 ]
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
@@ -284,14 +259,8 @@ function testMultipleTopics {
         sleep 5
         killAll
         checkLogs
-        if [ $? -ne 0 ]
-        then
-                echo "FAIL"
-        else
-                PASS_COUNT=$((PASS_COUNT+1))
-                echo "PASS"
-        fi
-        clearLogs
+        passFail $?
+	clearLogs
 }
 
 function testMultipleTopicsConcurrentProducers {
@@ -311,24 +280,53 @@ function testMultipleTopicsConcurrentProducers {
 	sleep 5
 	killAll
 	checkLogs
-	if [ $? -ne 0 ]
-	then
-		echo "FAIL"
-	else
-		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"
-	fi
+	passFail $?
 	clearLogs
 }
 
+function testCatchUp {
+	echo "Starting testCatchUp..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startRegister
+	startLeader
+	sleep 3
+	./stupidproducer &>/dev/null &
+	startFollowers
+	sleep 5
+	killAll
+	checkLogs
+        passFail $?
+	clearLogs
+}
 
-testOneLeader
-testFollowers
-testRegisterSlowStart
-testLeaderSlowStart
-testAlternatingProducers
-testConcurrentProducers
-testMultipleTopics
-testMultipleTopicsConcurrentProducers
+function testCatchUpMultipleTopics {
+	echo "Starting testCatchUpMultipleTopics..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startRegister
+	startLeader
+	sleep 3
+        ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	startFollowers
+	sleep 5
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
+}
+
+#testOneLeader
+#testFollowers
+#testRegisterSlowStart
+#testLeaderSlowStart
+#testAlternatingProducers
+#testConcurrentProducers
+#testMultipleTopics
+#testMultipleTopicsConcurrentProducers
+#testCatchUp
+testCatchUpMultipleTopics
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"

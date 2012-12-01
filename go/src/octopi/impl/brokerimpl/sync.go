@@ -6,7 +6,6 @@ import (
 	"net"
 	"octopi/api/protocol"
 	"octopi/util/log"
-	"sync"
 )
 
 type Follower struct {
@@ -98,20 +97,14 @@ func (f *Follower) catchUp(broker *Broker) error {
 	logs := broker.logs
 	broker.lock.Unlock()
 
-	var group sync.WaitGroup
 	var abort error
 
 	for topic, _ := range logs {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			if err := f.catchUpLog(broker, topic); nil != err {
-				abort = err
-			}
-		}()
+		if err := f.catchUpLog(broker, topic); nil != err {
+			abort = err
+		}
 	}
 
-	group.Wait()
 	return abort
 
 }
@@ -138,7 +131,7 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 
 		// send to follower
 		sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
-		log.Debug("Wrote %v.", entry.RequestId)
+		log.Debug("Wrote %v on topic %v to %v", entry.Message.ID, topic, f.hostport)
 		if err = websocket.JSON.Send(f.conn, sync); nil != err {
 			return err
 		}
