@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>~/dev/null &
+	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
 	REG_PID=$!
 	sleep 5
 }
@@ -318,6 +318,53 @@ function testCatchUpMultipleTopics {
 	clearLogs
 }
 
+function testRestartFollowers {
+	echo "Starting testRestartFollowers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	killFollowers
+	sleep 3
+	startFollowers
+	sleep 3
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
+}
+
+function testSyncAndRestartFollowers {
+	echo "Starting testSyncAndRestartFollowers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	sleep 3
+	killFollowers
+	sleep 1
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	sleep 3
+	startFollowers
+	sleep 3
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
+}
+
 testOneLeader
 testFollowers
 testRegisterSlowStart
@@ -328,5 +375,7 @@ testMultipleTopics
 testMultipleTopicsConcurrentProducers
 testCatchUp
 testCatchUpMultipleTopics
+testRestartFollowers
+testSyncAndRestartFollowers
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
