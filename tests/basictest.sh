@@ -318,15 +318,15 @@ function testCatchUpMultipleTopics {
 	clearLogs
 }
 
-#testOneLeader
-#testFollowers
-#testRegisterSlowStart
-#testLeaderSlowStart
-#testAlternatingProducers
-#testConcurrentProducers
-#testMultipleTopics
-#testMultipleTopicsConcurrentProducers
-#testCatchUp
+testOneLeader
+testFollowers
+testRegisterSlowStart
+testLeaderSlowStart
+testAlternatingProducers
+testConcurrentProducers
+testMultipleTopics
+testMultipleTopicsConcurrentProducers
+testCatchUp
 testCatchUpMultipleTopics
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
