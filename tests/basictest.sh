@@ -416,18 +416,18 @@ function testRandomKillAndRestart {
 	clearLogs
 }
 
-#testOneLeader
-#testFollowers
-#testRegisterSlowStart
-#testLeaderSlowStart
-#testAlternatingProducers
-#testConcurrentProducers
-#testMultipleTopics
-#testMultipleTopicsConcurrentProducers
-#testCatchUp
-#testCatchUpMultipleTopics
-#testRestartFollowers
-#testSyncAndRestartFollowers
+testOneLeader
+testFollowers
+testRegisterSlowStart
+testLeaderSlowStart
+testAlternatingProducers
+testConcurrentProducers
+testMultipleTopics
+testMultipleTopicsConcurrentProducers
+testCatchUp
+testCatchUpMultipleTopics
+testRestartFollowers
+testSyncAndRestartFollowers
 testRandomKillAndRestart
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
