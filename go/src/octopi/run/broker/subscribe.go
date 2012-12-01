@@ -48,7 +48,7 @@ func consumer(conn *websocket.Conn) {
 		}
 
 		subscriptions[request.Topic] = subscription
-		ack := protocol.Ack{Status: protocol.SUCCESS}
+		ack := protocol.Ack{Status: protocol.StatusSuccess}
 		websocket.JSON.Send(conn, &ack)
 
 		go subscription.Serve()

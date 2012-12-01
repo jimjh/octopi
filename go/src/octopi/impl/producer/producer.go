@@ -107,7 +107,7 @@ func (p *Producer) Send(topic string, payload []byte) error {
 			select {
 			case ack, ok := <-p.receiveAck():
 				if ok {
-					if protocol.SUCCESS == ack.Status {
+					if protocol.StatusSuccess == ack.Status {
 						log.Debug("Ack received.")
 						return nil
 					}

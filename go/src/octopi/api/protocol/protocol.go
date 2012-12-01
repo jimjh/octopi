@@ -17,10 +17,10 @@ const (
 
 // Status codes
 const (
-	SUCCESS  = 200 // successful operation
-	REDIRECT = 320 // redirect to attached host:port
-	NOTREADY = 350 // status is not ready (used in register)
-	FAILURE  = 400 // failed operation
+	StatusSuccess  = 200 // successful operation
+	StatusRedirect = 320 // redirect to attached host:port
+	StatusNotReady = 350 // status is not ready (used in register)
+	StatusFailure  = 400 // failed operation
 )
 
 // Register add or remove a follower
@@ -28,9 +28,6 @@ const (
 	ADD = iota
 	REMOVE
 )
-
-// Max number of milliseconds between retries.
-const MAX_RETRY_INTERVAL = 2000
 
 // FollowRequests are sent by brokers to registers/leaders when they wish to
 // join the broker set.
@@ -71,8 +68,8 @@ type SyncACK struct {
 
 // ACKs are sent from registers/brokers to producers/consumers/brokers.
 type Ack struct {
-	Status   int    // status code
-	HostPort string // optional redirect
+	Status  int    // status code
+	Payload []byte // payload
 }
 
 // ProduceRequests are sent from producers to brokers when they want to send

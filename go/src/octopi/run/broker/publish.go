@@ -35,7 +35,7 @@ func producer(conn *websocket.Conn) {
 		}
 		// TODO: should redirect if this node is not the leader
 
-		ack := protocol.Ack{Status: protocol.SUCCESS}
+		ack := protocol.Ack{Status: protocol.StatusSuccess}
 		websocket.JSON.Send(conn, &ack)
 
 	}

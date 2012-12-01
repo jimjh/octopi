@@ -7,3 +7,4 @@ install:
 .PHONY: test
 test:
 	go test octopi/util/config
+	go test octopi/api/protocol

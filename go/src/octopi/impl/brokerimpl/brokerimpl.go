@@ -178,13 +178,13 @@ func (b *Broker) register(hostport string) bool {
 		var redirect protocol.Ack
 		err = websocket.JSON.Receive(regConn, &redirect)
 
-		if nil != err || redirect.Status != protocol.REDIRECT {
+		if nil != err || redirect.Status != protocol.StatusRedirect {
 			log.Warn("Register is not ready yet")
 			backoff()
 			continue
 		}
 
-		leaderHostport = protocol.HostPort(redirect.HostPort)
+		leaderHostport = protocol.HostPort(redirect.Payload)
 
 		regConn.Close()
 		break
@@ -286,6 +286,7 @@ func (b *Broker) getOrOpenLog(topic string) (*Log, error) {
 
 }
 
+// XXX: is it appropriate to exit?
 func checkError(err error) {
 	if err != nil {
 		os.Exit(1)
