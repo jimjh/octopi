@@ -95,15 +95,14 @@ function killFollowers {
 	done
 }
 
-function cleanUp {
+function killAll {
 	killRegister
 	killLeader
 	killFollowers
-	clearLogs
 }
 
 function testOneLeader {
-	echo "Starting testOneLeader"
+	echo "Starting testOneLeader..."
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	N=0
 	startRegister
@@ -111,7 +110,7 @@ function testOneLeader {
 	startFollowers
 	# Let followers be in-sync with leader
 	sleep 3
-	./stupidProducer &>/dev/null
+	./stupidproducer &>/dev/null
 	if [ $? -eq 0 ]
 	then
 		PASS_COUNT=$((PASS_COUNT+1))
@@ -121,18 +120,41 @@ function testOneLeader {
 	fi
 	# Let transactions be complete
 	sleep 3
-	cleanUp
+	killAll
+	clearLogs
+}
+
+function checkLogs {
+	cd $BIN_PATH
+	cd ../tmp
+	TMP_PATH=$(pwd)
+	for i in `jot ${N} 1`
+        do
+		shopt -s nullglob
+		for f in $TMP_PATH/*
+		do
+			fname=$(basename "$f")
+                	diff $f ../tmp-follower${i}/$fname
+                	if [ $? -ne 0 ] ; then
+                        	echo "FAIL"
+				cd $BIN_PATH
+                        	return 1
+                	fi
+		done
+        done
+	cd $BIN_PATH
+	return 0
 }
 
 function testFollowers {
-	echo "Starting testFollowers"
+	echo "Starting testFollowers..."
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	N=3
 	startRegister
 	startLeader
 	startFollowers
 	sleep 3
-	./stupidProducer &>/dev/null
+	./stupidproducer &>/dev/null
 	if [ $? -ne 0 ]
 	then
 		echo "FAIL"
@@ -140,25 +162,173 @@ function testFollowers {
 		return
 	fi
 	sleep 3
-	killRegister
-	killLeader
-	killFollowers
-	cd $BIN_PATH
+	killAll
+	checkLogs
+	if [ $? -ne 0 ];
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
+	clearLogs
+}
+
+function testRegisterSlowStart {
+	echo "Starting testRegisterSlowStart..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startLeader
+	startFollowers
+	sleep 5
+	startRegister
+	sleep 3
+	./stupidproducer &>/dev/null
+	sleep 3
+	killAll
+	checkLogs
+	if [ $? -ne 0 ];
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
+	clearLogs
+}
+
+function testLeaderSlowStart {
+	echo "Starting testLeaderSlowStart..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startFollowers
+	startRegister
+	sleep 5
+	startLeader
+	sleep 3
+	./stupidproducer &>/dev/null
+	sleep 3
+	killAll
+	checkLogs
+	if [ $? -ne 0 ]
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
+	clearLogs
+}
+
+function testAlternatingProducers {
+	echo "Starting testAlternatingProducers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startFollowers
+	startRegister
+	startLeader
+	sleep 3
 	for i in `jot ${N} 1`
 	do
-		diff ../tmp/seqTopic.ocp ../tmp-follower${i}/seqTopic.ocp
-		if [ $? -ne 0 ] ; then
-			echo "FAIL"
-			clearLogs
-			return
-		fi
+		./stupidproducer -id="Producer${i}" &>/dev/null
 	done
+	sleep 3
+	killAll
+	checkLogs
+	if [ $? -ne 0 ]
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
 	clearLogs
-	PASS_COUNT=$((PASS_COUNT+1))
-	echo "PASS"
 }
+
+function testConcurrentProducers {
+	echo "Starting testConcurrentProducers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startFollowers
+	startRegister
+	startLeader
+	sleep 3
+	for i in `jot ${N} 1`
+	do
+		./stupidproducer -id="Producer${i}" &>/dev/null &
+	done
+	sleep 5
+	killAll
+	checkLogs
+	if [ $? -ne 0 ]
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
+	clearLogs
+}
+
+function testMultipleTopics {
+        echo "Starting testMultipleTopics..."
+        TESTS_TOTAL=$((TESTS_TOTAL+1))
+        N=3
+        startRegister
+        startFollowers
+        startLeader
+        sleep 3
+        ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null
+        sleep 5
+        killAll
+        checkLogs
+        if [ $? -ne 0 ]
+        then
+                echo "FAIL"
+        else
+                PASS_COUNT=$((PASS_COUNT+1))
+                echo "PASS"
+        fi
+        clearLogs
+}
+
+function testMultipleTopicsConcurrentProducers {
+	echo "Starting testMultipleTopicsConcurrentProducers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	startRegister
+	startFollowers
+	startLeader
+	sleep 3
+	for i in `jot ${N} 1`
+	do
+		./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+		./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+		./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	done
+	sleep 5
+	killAll
+	checkLogs
+	if [ $? -ne 0 ]
+	then
+		echo "FAIL"
+	else
+		PASS_COUNT=$((PASS_COUNT+1))
+		echo "PASS"
+	fi
+	clearLogs
+}
+
 
 testOneLeader
 testFollowers
+testRegisterSlowStart
+testLeaderSlowStart
+testAlternatingProducers
+testConcurrentProducers
+testMultipleTopics
+testMultipleTopicsConcurrentProducers
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
