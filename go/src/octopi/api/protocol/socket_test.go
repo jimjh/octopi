@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// TODO: Open returns a channel
-// TODO: channel closes if connection is lost
-
 func count(requestCount *int) func(*websocket.Conn) {
 	return func(conn *websocket.Conn) {
 		*requestCount++
@@ -36,10 +33,15 @@ func TestRetries(tester *testing.T) {
 
 	go server.Serve(listener)
 
-	socket := &Socket{"localhost:11111", "", "localhost:12345", new(Ack), nil}
+	socket := &Socket{
+		HostPort: "localhost:11111",
+		Path:     "",
+		Origin:   "localhost:12345",
+		Msg:      Ack{},
+	}
 	attempts := 5
-	_, _, err = socket.Open(nil, attempts)
-	t.AssertNotNil(err, "socket.Open")
+	_, err = socket.Send(nil, attempts)
+	t.AssertNotNil(err, "socket.Send")
 
 	listener.Close()
 	matcher := new(test.IntMatcher)
@@ -89,9 +91,14 @@ func TestRedirects(tester *testing.T) {
 	go server1.Serve(listener1)
 	go server2.Serve(listener2)
 
-	socket := &Socket{"localhost:11111", "", "localhost:12345", new(Ack), nil}
-	_, _, err = socket.Open(nil, 3)
-	t.AssertNil(err, "socket.Open")
+	socket := &Socket{
+		HostPort: "localhost:11111",
+		Path:     "",
+		Origin:   "localhost:12345",
+		Msg:      new(Ack),
+	}
+	_, err = socket.Send(nil, 3)
+	t.AssertNil(err, "socket.Send")
 
 	listener1.Close()
 	listener2.Close()
@@ -109,7 +116,7 @@ func fail(requestCount *int) func(*websocket.Conn) {
 	}
 }
 
-// TestFailure ensures that Open returns an error on failure.
+// TestFailure ensures that Send returns an error on failure.
 func TestFailure(tester *testing.T) {
 
 	t := test.New(tester)
@@ -124,9 +131,14 @@ func TestFailure(tester *testing.T) {
 
 	go server.Serve(listener)
 
-	socket := &Socket{"localhost:11111", "", "localhost:12345", new(Ack), nil}
-	_, _, err = socket.Open(nil, 3)
-	t.AssertNotNil(err, "socket.Open")
+	socket := &Socket{
+		HostPort: "localhost:11111",
+		Path:     "",
+		Origin:   "localhost:12345",
+		Msg:      Ack{},
+	}
+	_, err = socket.Send(nil, 3)
+	t.AssertNotNil(err, "socket.Send")
 
 	listener.Close()
 
@@ -147,7 +159,7 @@ func stream(requestCount *int) func(*websocket.Conn) {
 	}
 }
 
-func TestChannel(tester *testing.T) {
+func TestReceive(tester *testing.T) {
 
 	t := test.New(tester)
 	requestCount := 0
@@ -161,20 +173,27 @@ func TestChannel(tester *testing.T) {
 
 	go server.Serve(listener)
 
-	socket := &Socket{"localhost:11111", "", "localhost:12345", SyncACK{}, nil}
-	channel, _, err := socket.Open(nil, 3)
-	t.AssertNil(err, "socket.Open")
+	socket := &Socket{
+		HostPort: "localhost:11111",
+		Path:     "",
+		Origin:   "localhost:12345",
+		Msg:      SyncACK{},
+	}
+	_, err = socket.Send(nil, 3)
+	t.AssertNil(err, "socket.Send")
 
 	listener.Close()
 
 	matcher := new(test.IntMatcher)
 
 	var expected int64 = 0
-	for msg := range channel {
-		if expected != msg.(*SyncACK).Offset {
-			tester.Errorf("Expected %d, was %d.", expected, msg.(*SyncACK).Offset)
+	for expected = 0; expected < 10; expected++ {
+		var msg SyncACK
+		err = socket.Receive(&msg)
+		t.AssertNil(err, "socket.Receive")
+		if expected != msg.Offset {
+			tester.Errorf("Expected %d, was %d.", expected, msg.Offset)
 		}
-		expected++
 	}
 
 	t.AssertEqual(matcher, 1, requestCount)

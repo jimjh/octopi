@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 	"octopi/util/log"
-	"reflect"
 	"time"
 )
 
@@ -23,118 +22,126 @@ var ABORT = errors.New("Exceeded maximum number of attempts.")
 const ws = "ws://"
 
 type Socket struct {
-	hostport string          // host:port of target node
-	path     string          // target url that is serving ws requests
-	origin   string          // source origin (See websockets spec)
-	msg      interface{}     // type of message that will be received
+	HostPort string          // host:port of target node
+	Path     string          // target url that is serving ws requests
+	Origin   string          // source origin (See websockets spec)
+	Msg      interface{}     // type of message that will be received
 	Conn     *websocket.Conn // websocket connection
 }
 
-// Open sends the request to the given endpoint, and keeps trying until it
+// Close closes the connection.
+func (s *Socket) Close() error {
+	return s.close()
+}
+
+func (s *Socket) close() error {
+	conn := s.Conn
+	s.Conn = nil
+	if nil == conn {
+		return nil
+	}
+	return conn.Close()
+}
+
+// Send sends the request to the given endpoint, and keeps trying until it
 // succeeds or exceeds the maximum number of retries. If it encounters a
 // redirect, the enclosed hostport is used as to find the new endpoint. Returns
 // a channel that can be used to receive messages if there are no errors.
-func (s *Socket) Open(request interface{}, attempts int) (<-chan interface{}, []byte, error) {
-
-	endpoint := ws + s.hostport + "/" + s.path
+func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 
 	for attempt := 0; attempt < attempts; attempt++ {
 
-		// open connection
-		err := s.open(endpoint, request)
+		endpoint := ws + s.HostPort + "/" + s.Path
+
+		// open connection and send message
+		err := s.send(endpoint, request)
 		if nil != err {
-			log.Warn("Unable to open connection with %s: %s", err.Error())
+			log.Warn("Unable to open connection with %s: %s", endpoint, err.Error())
 			backoff()
 			continue
 		}
 
 		// wait for acknowledgement
 		var ack Ack
-		err = websocket.JSON.Receive(s.Conn, &ack)
+		err = s.Receive(&ack)
+
 		if nil == err {
 
 			// interpret status
 			switch ack.Status {
 			case StatusFailure:
-				s.Conn.Close()
-				return nil, nil, fmt.Errorf("%s responded with failure status.", endpoint)
+				s.close()
+				return nil, fmt.Errorf("%s responded with failure status.", endpoint)
 			case StatusSuccess:
-				channel := s.receive(&ack)
-				return channel, ack.Payload, nil
+				return ack.Payload, nil
 			case StatusRedirect:
 				log.Debug("Redirected to %s.", ack.Payload)
-				endpoint = ws + string(ack.Payload) + "/" + s.path
+				s.HostPort = string(ack.Payload)
 				attempt = 0
 			default:
 			}
 
 		}
 
-		s.Conn.Close()
+		s.close()
 		backoff()
 
 	}
 
-	return nil, nil, ABORT
+	return nil, ABORT
 
 }
 
-// open makes a single attempt to dial the endpoint and send the given request.
-func (s *Socket) open(endpoint string, request interface{}) error {
+// send makes a single attempt to dial the endpoint if it's closed. Then it
+// sends the given request.
+func (s *Socket) send(endpoint string, request interface{}) error {
 
 	var err error
-	s.Conn, err = websocket.Dial(endpoint, "", s.origin)
-	if nil != err {
-		return err
-	}
-
-	if nil != request {
-		err = websocket.JSON.Send(s.Conn, request)
-		if nil != err {
-			s.Conn.Close()
+	if nil == s.Conn {
+		log.Debug("Dialing %s.", endpoint)
+		s.Conn, err = websocket.Dial(endpoint, "", s.Origin)
+		if nil != err || nil == request {
 			return err
 		}
+	}
+
+	err = websocket.JSON.Send(s.Conn, request)
+	if nil != err {
+		s.close()
+		return err
 	}
 
 	return nil
 
 }
 
-// receive spawns a goroutine that waits on messages from the given connection.
-// The returned channel may be used to receive messages on this connection; the
-// channel is closed when the connection is deemed usable.
-func (s *Socket) receive(ack *Ack) <-chan interface{} {
+// Receive waits on the associated websocket connection and unmarshals the
+// desired. An error is returned is the connection is deemed unsable.
+func (s *Socket) Receive(value interface{}) error {
 
-	channel := make(chan interface{})
+	for {
 
-	go func() {
+		err := websocket.JSON.Receive(s.Conn, value)
 
-		msgType := reflect.TypeOf(s.msg)
-		for {
-
-			value := reflect.New(msgType)
-			err := websocket.JSON.Receive(s.Conn, value.Interface())
-
-			switch err {
-			case nil:
-				channel <- value.Interface()
-			case io.EOF:
-				close(channel)
-				return
-			default:
-				e, ok := err.(net.Error)
-				if ok && !e.Temporary() {
-					close(channel)
-					return
-				}
-				log.Error("Ignoring invalid message: %s", err.Error())
+		switch err {
+		case nil:
+			return nil
+		case io.EOF:
+			s.close()
+			return err
+		default:
+			e, ok := err.(net.Error)
+			if ok && !e.Temporary() {
+				s.close()
+				return err
 			}
-
 		}
 
-	}()
+		log.Warn("Ignoring invalid message from %s.", s.Conn.RemoteAddr())
 
-	return channel
+	}
+
+	return nil
 
 }
 

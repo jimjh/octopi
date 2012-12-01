@@ -1,44 +1,48 @@
 package producer
 
 import (
-	"code.google.com/p/go.net/websocket"
 	crand "crypto/rand"
 	"fmt"
 	"hash/crc32"
-	"io"
 	"math"
 	"math/big"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/log"
+	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // Producers publish messages to brokers.
 type Producer struct {
-	conn   *websocket.Conn // persistent websocket connection
-	seqnum int64           // sequence number of messages
-	lock   sync.Mutex      // lock for producer state
-	id     string          // producer ID
+	socket *protocol.Socket // protocol socket
+	seqnum int64            // sequence number of messages
+	lock   sync.Mutex       // lock for producer state
+	id     string           // producer ID
 }
 
-// Default origin to use.
-var ORIGIN = "http://localhost"
-
 // Max number of retries.
-// XXX: move this to a configuration file
-var MAX_RETRIES = 5
+const MAX_RETRIES = 5
 
+// seed seeds the random number generator
 func seed() {
 	randint, _ := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
 	rand.Seed(randint.Int64())
 }
 
+// origin returns the hostname
+func origin() string {
+	name, err := os.Hostname()
+	if nil != err {
+		log.Panic(err.Error())
+	}
+	return "ws://" + name
+}
+
 // New creates a new producer that sends messages to broker that lives
 // at the given hostport.
-func New(hostport string, id *string) (*Producer, error) {
+func New(hostport string, id *string) *Producer {
 
 	if nil == id {
 		seed()
@@ -46,45 +50,14 @@ func New(hostport string, id *string) (*Producer, error) {
 		id = &idStr
 	}
 
-	p := &Producer{id: *id}
-	addr := "ws://" + hostport + "/" + protocol.PUBLISH
-
-	if err := p.connect(addr); nil != err {
-		return nil, err
+	socket := &protocol.Socket{
+		HostPort: hostport,
+		Path:     protocol.PUBLISH,
+		Origin:   origin(),
+		Msg:      protocol.Ack{},
 	}
 
-	return p, nil
-
-}
-
-// Establishes a websocket connection to the broker.
-func (p *Producer) connect(addr string) error {
-
-	conn, err := websocket.Dial(addr, "", ORIGIN)
-
-	if nil != err {
-		log.Error(err.Error())
-	} else {
-		p.conn = conn
-		log.Info("Established new connection to broker at %v.", conn.RemoteAddr())
-	}
-
-	return err
-
-}
-
-// Locks down producer, closes current connection, and reconnects to broker.
-func (p *Producer) reconnect() error {
-
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	p.conn.Close()
-
-	// back off and reconnect
-	backoff := time.Duration(rand.Intn(protocol.MAX_RETRY_INTERVAL))
-	time.Sleep(backoff * time.Millisecond)
-	return p.connect(p.conn.RemoteAddr().String())
+	return &Producer{id: *id, socket: socket}
 
 }
 
@@ -98,59 +71,16 @@ func (p *Producer) Send(topic string, payload []byte) error {
 
 	log.Debug("Sending %v", request)
 
-	var err error
-	for tries := 1; tries <= MAX_RETRIES; tries++ {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	_, err := p.socket.Send(request, MAX_RETRIES)
 
-		err = websocket.JSON.Send(p.conn, request)
-		if nil == err { // wait for ACK
-			timeout := time.Duration(protocol.MAX_RETRY_INTERVAL)
-			select {
-			case ack, ok := <-p.receiveAck():
-				if ok {
-					if protocol.StatusSuccess == ack.Status {
-						log.Debug("Ack received.")
-						return nil
-					}
-					continue
-				} // otherwise, reconnect
-				err = &ProduceError{seqnum}
-			case <-time.After(timeout * time.Millisecond):
-				log.Debug("Timed out waiting for ACK ...")
-				err = &ProduceError{seqnum}
-				continue
-			}
-		}
-
-		log.Error(err.Error())
-		p.reconnect()
-		log.Debug("Retrying...")
-
+	if nil != err {
+		return &ProduceError{seqnum}
 	}
 
-	return err
-
-}
-
-// receiveAck waits for an acknowledgement from the broker.
-func (p *Producer) receiveAck() <-chan *protocol.Ack {
-
-	ackc := make(chan *protocol.Ack)
-	go func() {
-		for {
-			var ack protocol.Ack
-			err := websocket.JSON.Receive(p.conn, &ack)
-			if nil == err {
-				ackc <- &ack
-				break
-			}
-			if io.EOF == err {
-				close(ackc)
-				break
-			}
-		}
-	}()
-
-	return ackc
+	log.Debug("Acknowledgement received.")
+	return nil
 
 }
 
@@ -159,7 +89,7 @@ func (p *Producer) receiveAck() <-chan *protocol.Ack {
 func (p *Producer) Close() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	p.conn.Close()
+	p.socket.Close()
 }
 
 // ProduceErrors indicate that a produce request failed.

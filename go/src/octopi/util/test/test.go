@@ -21,7 +21,7 @@ func (t *Test) AssertNil(x interface{}, prefix string) {
 	if nil == x {
 		return
 	}
-	t.Error(prefix, x)
+	t.Errorf("%s: variable should be nil, but was %v.", prefix, x)
 }
 
 // AssertNotNil checks if the given object is not nil and logs an error with
