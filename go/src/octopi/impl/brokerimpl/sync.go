@@ -71,6 +71,9 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 	// add to set of followers
 	broker.followers[f] = true
+	for follower, _ := range broker.followers {
+		log.Info("Followers include: %v", follower.hostport)
+	}
 
 	// create struct to communicate with register
 	var addFollow protocol.InsyncChange
@@ -135,7 +138,7 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 
 		// send to follower
 		sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
-		log.Debug("Wrote %v.", sync)
+		log.Debug("Wrote %v.", entry.RequestId)
 		if err = websocket.JSON.Send(f.conn, sync); nil != err {
 			return err
 		}
