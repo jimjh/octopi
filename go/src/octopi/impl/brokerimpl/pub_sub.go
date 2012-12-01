@@ -5,7 +5,6 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"octopi/api/protocol"
 	"octopi/util/log"
-	"sync"
 )
 
 // Subscribe creates a new subscription for the given consumer connection.
@@ -97,32 +96,25 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 func (b *Broker) replicate(topic string, entry *LogEntry) error {
 
 	// send message to all followers
-	for follower := range b.followers {
-		go func() {
-			sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
-			if err := websocket.JSON.Send(follower.conn, sync); nil != err {
-				// lost
-				b.removeFollower(follower)
-			}
-		}()
+	for follower, _ := range b.followers {
+		sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
+		log.Info("Sending %v to %v", entry.Message.ID, follower.hostport)
+		if err := websocket.JSON.Send(follower.conn, sync); nil != err {
+			// lost
+			b.removeFollower(follower)
+		}
 	}
-
-	var group sync.WaitGroup
 
 	// wait for ACK
-	for follower := range b.followers {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			var ack protocol.SyncACK
-			if err := websocket.JSON.Receive(follower.conn, &ack); nil != err {
-				// lost
-				b.removeFollower(follower)
-			}
-		}()
+	for follower, _ := range b.followers {
+		var ack protocol.SyncACK
+		if err := websocket.JSON.Receive(follower.conn, &ack); nil != err {
+			// lost
+			b.removeFollower(follower)
+		}
+		log.Info("Received ACK from %v", follower.hostport)
 	}
 
-	group.Wait()
 	return nil
 
 }
