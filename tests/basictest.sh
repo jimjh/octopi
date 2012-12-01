@@ -60,6 +60,14 @@ function startFollowers {
 	done
 }
 
+function startFollower() {
+	if [ ${FOLLOWER_PID[$1]} -eq 0 ]
+	then
+		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
+		FOLLOWER_PID[$1]=$!
+	fi
+}
+
 function clearLogs {
 	cd $BIN_PATH  
         rm ../tmp/*
@@ -85,6 +93,14 @@ function killLeader {
 	kill ${LEADER_PID}
 }
 
+function killFollower() {
+	if [ ${FOLLOWER_PID[$1]} -ne 0 ]
+	then
+		kill ${FOLLOWER_PID[$1]}
+		FOLLOWER_PID[$1]=0
+	fi
+}
+
 # killFollowers kills the followers
 function killFollowers {
 	if [ $N -eq 0 ]; then
@@ -92,7 +108,7 @@ function killFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-		kill ${FOLLOWER_PID[$i]}
+		killFollower $i
 	done
 }
 
@@ -100,6 +116,16 @@ function killAll {
 	killRegister
 	killLeader
 	killFollowers
+}
+
+function killOrStart() {
+        i=$((RANDOM % 2))
+        if [ $i -eq 0 ]
+        then
+                killFollower $1
+        else
+                startFollower $1
+        fi
 }
 
 function passFail() {
@@ -365,6 +391,30 @@ function testSyncAndRestartFollowers {
 	clearLogs
 }
 
+function testRandomKillAndRestart {
+	echo "Starting testRandomKillAndRestart"
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	M=1000
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	for i in $M
+	do
+		./stupidproducer -id="Producer${i}" &>/dev/null &
+		killOrStart $((RANDOM % $N))
+	done
+	killFollowers
+	sleep 3
+	startFollowers
+	sleep 3
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
+}
+
 testOneLeader
 testFollowers
 testRegisterSlowStart
@@ -377,5 +427,6 @@ testCatchUp
 testCatchUpMultipleTopics
 testRestartFollowers
 testSyncAndRestartFollowers
+testRandomKillAndRestart
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
