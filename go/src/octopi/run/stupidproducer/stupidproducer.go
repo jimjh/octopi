@@ -32,11 +32,11 @@ func main() {
 	checkError(err)
 
 	// we were expecting a redirect
-	if redirect.Status != protocol.REDIRECT {
+	if redirect.Status != protocol.StatusRedirect {
 		os.Exit(1)
 	}
 
-	leaderHostPort := redirect.HostPort
+	leaderHostPort := string(redirect.Payload)
 	fmt.Println("Leader HostPort: ", leaderHostPort)
 	publishURL := "ws://" + leaderHostPort + "/" + protocol.PUBLISH
 
@@ -44,6 +44,8 @@ func main() {
 	checkError(err)
 
 	err = sendMessages(leadConn, *myId, *numMsgs)
+	checkError(err)
+
 }
 
 func sendMessages(conn *websocket.Conn, id string, msgCnt int) error {
@@ -65,7 +67,7 @@ func sendMessages(conn *websocket.Conn, id string, msgCnt int) error {
 			return err
 		}
 
-		if ack.Status != protocol.SUCCESS {
+		if ack.Status != protocol.StatusSuccess {
 			return errors.New("Incorrect Acknoledgement!")
 		}
 	}

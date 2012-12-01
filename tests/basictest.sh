@@ -60,7 +60,7 @@ function startFollowers {
 }
 
 function clearLogs {
-	cd $BIN_PATH  
+	cd $BIN_PATH
         rm ../tmp/*
 	cd ..
 	if [ $N -eq 0 ]; then
@@ -75,7 +75,7 @@ function clearLogs {
 }
 
 # killRegister kills the register
-function killRegister {	
+function killRegister {
 	kill ${REG_PID}
 }
 
@@ -111,11 +111,11 @@ function testOneLeader {
 	startFollowers
 	# Let followers be in-sync with leader
 	sleep 3
-	./stupidProducer &>/dev/null
+	./stupidProducer # &>/dev/null
 	if [ $? -eq 0 ]
 	then
 		PASS_COUNT=$((PASS_COUNT+1))
-		echo "PASS"	
+		echo "PASS"
 	else
 		echo "FAIL"
 	fi
