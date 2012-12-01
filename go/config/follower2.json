@@ -2,7 +2,7 @@
   "Options": {
     "port": "12347",
     "register": "localhost:12345",
-    "log_dir": "../tmp-follower",
+    "log_dir": "../tmp-follower2",
     "role": "follower"
   }
 }
