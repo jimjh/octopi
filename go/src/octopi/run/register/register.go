@@ -10,27 +10,34 @@ import (
 	"octopi/util/config"
 	"octopi/util/log"
 	"strconv"
-	"sync"
 )
 
 var register *regimpl.Register
-var handlerLock sync.Mutex
+var singleton chan int
 
 // leaderHandler handles brokers that are trying to initiate
 // leader connections with the register. Blocks connection
 // if there is already a leader
 func leaderHandler(ws *websocket.Conn) {
 
+	defer ws.Close()
+	// need to ensure that only one connection access at a time
+//	select {
+//		case <-singleton:
+			leaderChange(ws)
+//			singleton<-1
+//		default:
+			// return directly if unavailable
+//	}
+}
+
+
+func leaderChange(ws *websocket.Conn) {
+
 	var leaderhp protocol.HostPort
         err := websocket.JSON.Receive(ws, &leaderhp)
 
-	log.Info("Received leader request from %v", leaderhp)
-
-	// need to ensure that only one connection access at a time
-	handlerLock.Lock()
-	defer handlerLock.Unlock()
-
-	defer ws.Close()
+        log.Info("Received leader request from %v", leaderhp)
 
 	// close the connection if there is already a leader
 	if !register.NoLeader() {
@@ -131,6 +138,9 @@ func main() {
 	checkError(err)
 
 	register = regimpl.NewRegister()
+
+	singleton = make(chan int, 1)
+	singleton <- 1
 
 	listenHttp(port)
 }

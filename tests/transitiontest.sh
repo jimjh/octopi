@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
+	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
 	REG_PID=$!
 	sleep 5
 }
@@ -261,8 +261,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-testSimpleTransition
-testTransitionAdd
+#testSimpleTransition
+#testTransitionAdd
 testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
