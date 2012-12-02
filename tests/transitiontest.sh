@@ -117,8 +117,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-testSimpleTransition
-testTransitionAdd
+#testSimpleTransition
+#testTransitionAdd
 testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"

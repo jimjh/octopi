@@ -211,6 +211,76 @@ function testCatchUp {
 	sleep 5
 	killAll
 	checkLogs
+	passFail $?
+	clearLogs
+}
+
+function testCatchUpMultipleTopics {
+  echo "Starting testCatchUpMultipleTopics..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  NSTART=3
+  startRegister
+  startLeader
+  sleep 3
+        ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+        ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+  startFollowers
+  sleep 5
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
+}
+
+function testRestartFollowers {
+	echo "Starting testRestartFollowers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	NSTART=3
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	killFollowers
+	sleep 3
+	startFollowers
+	sleep 3
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
+}
+
+function testSyncAndRestartFollowers {
+	echo "Starting testSyncAndRestartFollowers..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	N=3
+	NSTART=3
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	sleep 3
+	killFollowers
+	sleep 1
+	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+	sleep 3
+	startFollowers
+	sleep 3
+	killAll
+	checkLogs
+	passFail $?
+	clearLogs
 }
 
 function testRandomKillAndRestart {
@@ -226,7 +296,7 @@ function testRandomKillAndRestart {
   for i in `jot ${M} 1`
   do
     ./stupidproducer -id="Producer${i}" &>/dev/null &
-    killOrStart $(((RANDOM % $N)+1))
+    killOrStart $(((RANDOM % $NSTART)+1))
     sleep 1
   done
   killFollowers
