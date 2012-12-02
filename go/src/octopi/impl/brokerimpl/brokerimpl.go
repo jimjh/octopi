@@ -2,10 +2,10 @@
 package brokerimpl
 
 import (
+	"math"
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/config"
@@ -56,7 +56,7 @@ func New(options *config.Config) (*Broker, error) {
 	b.initSocket()
 
 	if FOLLOWER == b.config.Role() {
-		return b, b.register(b.config.Register())
+		return b, b.register(b.config.Register(), math.MaxInt32)
 	}
 
 	b.BecomeLeader()
@@ -113,7 +113,7 @@ func (b *Broker) LeaderChange(hostport string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.leader.HostPort = hostport
-	b.register(hostport)
+	b.register(hostport, 0)
 }
 
 // BecomeLeader returns only after successfully declaring leadership with the
@@ -154,10 +154,10 @@ func (b *Broker) BecomeLeader() error {
 }
 
 // register sends a follow request to the given leader.
-func (b *Broker) register(hostport string) error {
+func (b *Broker) register(hostport string, attempts int) error {
 
 	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
-	payload, err := b.leader.Send(follow, math.MaxInt32)
+	payload, err := b.leader.Send(follow, attempts)
 	if nil != err {
 		return err
 	}

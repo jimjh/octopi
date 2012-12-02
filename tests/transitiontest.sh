@@ -232,6 +232,7 @@ function testRandomTransition {
 	M=5
 	startRegister
 	startLeader
+	sleep 2
 	startFollowers
 	sleep 3
 	killLeader
@@ -261,8 +262,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-testSimpleTransition
-testTransitionAdd
+#testSimpleTransition
+#testTransitionAdd
 testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
