@@ -25,7 +25,7 @@ func main() {
 	flag.Parse()
 
 	// register URL
-	regURL := "ws://" + *regHostPort + "/" + protocol.REDIRECTOR
+	regURL := "ws://" + *regHostPort + "/" + protocol.PUBLISH
 
 	regConn, err := websocket.Dial(regURL, "", *regHostPort)
 	checkError(err)

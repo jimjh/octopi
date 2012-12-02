@@ -26,7 +26,6 @@ type Socket struct {
 	HostPort string          // host:port of target node
 	Path     string          // target url that is serving ws requests
 	Origin   string          // source origin (See websockets spec)
-	Msg      interface{}     // type of message that will be received
 	Conn     *websocket.Conn // websocket connection
 	lock     sync.Mutex      // lock
 }

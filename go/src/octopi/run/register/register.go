@@ -137,9 +137,9 @@ func main() {
 
 func listenHttp(port int) {
 	http.Handle("/"+protocol.LEADER, websocket.Handler(leaderHandler))
-	http.Handle("/"+protocol.REDIRECTOR, websocket.Handler(redirectHandler))
+	http.Handle("/"+protocol.FOLLOW, websocket.Handler(redirectHandler))
+	http.Handle("/"+protocol.PUBLISH, websocket.Handler(redirectHandler))
 	http.Handle("/"+protocol.CONSUMER, websocket.Handler(consumerHandler))
-
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 

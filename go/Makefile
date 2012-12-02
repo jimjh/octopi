@@ -6,6 +6,6 @@ install:
 
 .PHONY: test
 test:
-	go test octopi/util/config
-	go test octopi/api/protocol
-	go test octopi/impl/producer
+	go test octopi/util/config -v
+	go test octopi/api/protocol -v
+	go test octopi/impl/producer -v

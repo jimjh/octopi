@@ -54,7 +54,6 @@ func New(hostport string, id *string) *Producer {
 		HostPort: hostport,
 		Path:     protocol.PUBLISH,
 		Origin:   origin(),
-		Msg:      protocol.Ack{},
 	}
 
 	return &Producer{id: *id, socket: socket}

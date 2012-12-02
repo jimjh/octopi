@@ -4,6 +4,7 @@ import (
 	"octopi/util/config"
 	"octopi/util/log"
 	"os"
+	"strconv"
 )
 
 const (
@@ -27,6 +28,26 @@ var logDir = os.TempDir()
 // LogDir returns the "log_dir" option in the configuration.
 func (c *Config) LogDir() string {
 	return c.Get("log_dir", logDir)
+}
+
+// Host returns the host of this broker. Defaults to os.Hostname.
+func (c *Config) Host() string {
+	host, err := os.Hostname()
+	if nil == err {
+		return c.Get("host", host)
+	}
+	return c.Get("host", "localhost")
+}
+
+const default_port = 5050
+
+// Port returns the port that this broker is listening on.
+func (c *Config) Port() int {
+	port, err := strconv.Atoi(c.Get("port", strconv.Itoa(default_port)))
+	if nil != err {
+		panic(err)
+	}
+	return port
 }
 
 // Role returns either "follower" or "leader"

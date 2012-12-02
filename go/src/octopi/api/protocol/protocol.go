@@ -10,9 +10,8 @@ const (
 	FOLLOW    = "follow"    // follower -> leader
 	SWAP      = "swap"      // register -> broker
 	// for register
-	LEADER     = "leader"     // leader -> register
-	REDIRECTOR = "redirector" // follower or publisher -> leader
-	CONSUMER   = "consumer"   // consumer -> follower
+	LEADER   = "leader"   // leader -> register
+	CONSUMER = "consumer" // consumer -> follower
 )
 
 // Status codes

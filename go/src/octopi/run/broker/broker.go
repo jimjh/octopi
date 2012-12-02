@@ -58,7 +58,9 @@ func main() {
 	port, err := strconv.Atoi(config.Get("port", PORT))
 	checkError(err)
 
-	broker = brokerimpl.New(config)
+	broker, err = brokerimpl.New(config)
+	checkError(err)
+
 	listenHttp(port)
 
 }
