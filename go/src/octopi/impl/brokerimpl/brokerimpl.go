@@ -4,6 +4,7 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -20,6 +21,7 @@ import (
 // and the others are followers.
 type Broker struct {
 	config        *Config
+	role          int                        // leader or follower
 	followers     map[*Follower]bool         // set of followers
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
@@ -44,8 +46,10 @@ type Offsets map[string]int64
 // - register: host:port of registry/leader
 func New(options *config.Config) (*Broker, error) {
 
+	config := &Config{*options}
 	b := &Broker{
-		config:        &Config{*options},
+		role:          config.Role(),
+		config:        config,
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
@@ -55,12 +59,14 @@ func New(options *config.Config) (*Broker, error) {
 	b.initLogs()
 	b.initSocket()
 
-	if FOLLOWER == b.config.Role() {
+	switch b.role {
+	case FOLLOWER:
 		return b, b.register()
+	case LEADER:
+		return b, b.BecomeLeader()
 	}
 
-	b.BecomeLeader()
-	return b, nil
+	return nil, errors.New("Invalid configuration options.")
 
 }
 
@@ -149,6 +155,8 @@ func (b *Broker) BecomeLeader() error {
 	}
 
 	b.checkpoints = b.tails()
+	b.role = LEADER
+
 	return nil
 
 }

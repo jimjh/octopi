@@ -52,7 +52,7 @@ func (b *Broker) ackFollower(f *Follower) error {
 	defer b.lock.Unlock()
 
 	ack := new(protocol.Ack)
-	if f.conn.RemoteAddr().String() == b.Origin() {
+	if b.role != LEADER || f.conn.RemoteAddr().String() == b.Origin() {
 		log.Warn("Denying follow requests from itself.")
 		ack.Status = protocol.StatusFailure
 	} else {
@@ -115,24 +115,25 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 }
 
-// catchUp tries to catch up the follower's log files with the leader's.
+// catchUp tries to catch up the follower's log files with the leader's. If the
+// follower dies while catching up, the sync will be aborted.
 func (f *Follower) catchUp(broker *Broker) error {
 
-	// TODO: what if follower dies while catching up?
+	logs := make([]string, len(broker.logs))
 
 	broker.lock.Lock()
-	logs := broker.logs
+	for topic, _ := range broker.logs {
+		logs = append(logs, topic)
+	}
 	broker.lock.Unlock()
 
-	var abort error
-
-	for topic, _ := range logs {
+	for _, topic := range logs {
 		if err := f.catchUpLog(broker, topic); nil != err {
-			abort = err
+			return err
 		}
 	}
 
-	return abort
+	return nil
 
 }
 

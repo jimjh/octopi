@@ -14,6 +14,7 @@ package main
 import (
 	"code.google.com/p/go.net/websocket"
 	"flag"
+	"fmt"
 	"net/http"
 	"octopi/api/protocol"
 	"octopi/impl/brokerimpl"
@@ -34,7 +35,6 @@ const PORT = "5050"
 //  - host:port of register/leader
 func main() {
 
-	log.SetPrefix("broker: ")
 	log.SetVerbose(log.DEBUG)
 
 	defer func() {
@@ -57,6 +57,8 @@ func main() {
 
 	port, err := strconv.Atoi(config.Get("port", PORT))
 	checkError(err)
+
+	log.SetPrefix(fmt.Sprintf("broker@%d: ", port))
 
 	broker, err = brokerimpl.New(config)
 	checkError(err)

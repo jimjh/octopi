@@ -96,7 +96,7 @@ function testRandomTransition {
         do
                 ./stupidproducer -id="Producer${i}" &>/dev/null &
 		randNum=$(((RANDOM % $NSTART)+1))
-                if [ $N -gt 2 ] 
+                if [ $N -gt 2 ]
 		then
 			killOrStart $randNum
 		else
@@ -114,7 +114,7 @@ function testRandomTransition {
 	passFail $?
 	killRegister
 	killFollowers
-	clearLogs
+	# clearLogs
 }
 
 #testSimpleTransition
