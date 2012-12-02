@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
+	./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
 	REG_PID=$!
 	sleep 5
 }
@@ -55,7 +55,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
+		./broker -conf="${CONFIG_PATH}/follower${i}.json" &
 		FOLLOWER_PID[$i]=$!
 	done
 }
@@ -193,8 +193,9 @@ function testSimpleTransition {
 	startFollowers
 	sleep 3
 	killLeader
-	./stupidproducer &>/dev/null &
 	sleep 3
+	./stupidproducer &>/dev/null &
+	sleep 5
 	checkFollowerLogs
 	passFail $?
 	killRegister
@@ -260,8 +261,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-#testSimpleTransition
+testSimpleTransition
 #testTransitionAdd
-testRandomTransition
+#testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
