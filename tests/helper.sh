@@ -1,6 +1,6 @@
 # startLeader starts the leader in the background
 function startLeader {
-	mkdir $TMP_PATH
+	mkdir -p $TMP_PATH
 	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
 	LEADER_PID=$!
 	sleep 5
@@ -21,7 +21,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-    		mkdir "${TMP_PATH}-follower-${i}"
+    		mkdir -p "${TMP_PATH}-follower-${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
 		FOLLOWER_PID[$i]=$!
 	done
@@ -112,4 +112,25 @@ function checkLogs {
         done
         cd $BIN_PATH
         return 0
+}
+
+function checkFollowerLogs {
+	cd $TMP_PATH
+	cd "../tmp-follower-1"
+	FOLLOWER1_PATH=$(pwd)
+	for i in `jot ${N} 1`
+	do
+		shopt -s nullglob
+		for f in $FOLLOWER1_PATH/*
+		do
+			fname=$(basename "$F")
+			diff $f ../tmp-follower-${i}/$fname
+			if [ $? -ne 0 ] ; then
+				cd $BIN_PATH
+				return 1
+			fi
+		done
+	done
+	cd $BIN_PATH
+	return 0
 }

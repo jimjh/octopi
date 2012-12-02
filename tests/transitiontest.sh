@@ -12,6 +12,7 @@ RUN_PATH=$PROJECT_PATH/src/octopi/run
 # Path of bin folder
 BIN_PATH=${PROJECT_PATH}/bin/darwin_amd64
 TEST_PATH=${PROJECT_PATH}/../tests
+TMP_PATH=${PROJECT_PATH}/bin/tmp
 
 TESTS_TOTAL=0
 PASS_COUNT=0
@@ -35,74 +36,6 @@ mv stupidproducer $BIN_PATH
 cd $BIN_PATH
 
 . ${TEST_PATH}/helper.sh
-
-function killAll {
-	killRegister
-	killLeader
-	killFollowers
-}
-
-function killOrStart() {
-        i=$((RANDOM % 2))
-        if [ $i -eq 0 ]
-        then
-                killFollower $1
-        else
-                startFollower $1
-        fi
-}
-
-function passFail() {
-	if [ $1 -eq 0 ]
-        then
-		PASS_COUNT=$((PASS_COUNT+1))
-                echo "PASS"     
-        else
-                echo "FAIL"
-        fi
-}
-
-function checkLogs {
-        cd $BIN_PATH
-        cd ../tmp
-        TMP_PATH=$(pwd)
-        for i in `jot ${N} 1`
-        do
-                shopt -s nullglob
-                for f in $TMP_PATH/*
-                do
-                        fname=$(basename "$f")
-                        diff $f ../tmp-follower${i}/$fname
-                        if [ $? -ne 0 ] ; then
-                                cd $BIN_PATH
-                                return 1
-                        fi
-                done
-        done
-        cd $BIN_PATH
-        return 0
-}
-
-function checkFollowerLogs {
-	cd $BIN_PATH
-	cd ../tmp-follower1
-	FOLLOWER1_PATH=$(pwd)
-	for i in `jot ${N} 1`
-	do
-		shopt -s nullglob
-		for f in $FOLLOWER1_PATH/*
-		do
-			fname=$(basename "$F")
-			diff $f ../tmp-follower${i}/$fname
-			if [ $? -ne 0 ] ; then
-				cd $BIN_PATH
-				return 1
-			fi
-		done
-	done
-	cd $BIN_PATH
-	return 0
-}
 
 function testSimpleTransition {
 	echo "Starting testSimpleTransition"
@@ -184,8 +117,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-#testSimpleTransition
-#testTransitionAdd
+testSimpleTransition
+testTransitionAdd
 testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
