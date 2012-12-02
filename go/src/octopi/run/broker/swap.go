@@ -21,9 +21,6 @@ func register(ws *websocket.Conn) {
 		return
 	}
 
-	// close connection to previous leader
-	broker.LeaderClose()
-
 	var max uint32 = 0
 	var maxhp string
 

@@ -30,21 +30,9 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 		quit:     make(chan interface{}, 1),
 	}
 
-	b.lock.Lock()
-	ack := new(protocol.FollowACK)
-	if nil != b.checkpoints {
-		ack.Truncate = make(Offsets)
-		for topic, checkpoint := range b.checkpoints {
-			if tails[topic] > checkpoint {
-				ack.Truncate[topic] = checkpoint
-				tails[topic] = checkpoint
-			}
-		}
+	if err := b.ackFollower(follower); nil != err {
+		return err
 	}
-
-	inner, _ := json.Marshal(ack)
-	websocket.JSON.Send(conn, &protocol.Ack{protocol.StatusSuccess, inner})
-	b.lock.Unlock()
 
 	log.Debug("Begin synchronizing follower.")
 	for !follower.caughtUp(b) {
@@ -57,6 +45,36 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 
 	<-follower.quit
 	return nil
+
+}
+
+func (b *Broker) ackFollower(f *Follower) error {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	ack := new(protocol.Ack)
+	if f.conn.RemoteAddr().String() == b.Origin() {
+		ack.Status = protocol.StatusFailure
+	} else {
+
+		inner := new(protocol.FollowACK)
+
+		if nil != b.checkpoints {
+			inner.Truncate = make(Offsets)
+			for topic, checkpoint := range b.checkpoints {
+				if f.tails[topic] > checkpoint {
+					inner.Truncate[topic] = checkpoint
+					f.tails[topic] = checkpoint
+				}
+			}
+		}
+
+		ack.Payload, _ = json.Marshal(ack)
+
+	}
+
+	return websocket.JSON.Send(f.conn, ack)
 
 }
 

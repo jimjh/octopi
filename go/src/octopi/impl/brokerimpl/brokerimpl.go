@@ -101,20 +101,15 @@ func (b *Broker) initLogs() {
 
 }
 
-// LeaderClose closes the connection with leader
-func (b *Broker) LeaderClose() {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.leader.Close()
-}
-
 // Leader change changes the leader connection
 func (b *Broker) LeaderChange() error {
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
+	b.leader.Close()
 	b.leader.HostPort = b.config.Register()
+
 	return b.register()
 
 }
@@ -130,6 +125,8 @@ func (b *Broker) BecomeLeader() error {
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
+
+	b.leader.Close()
 
 	for {
 		// dial the register
