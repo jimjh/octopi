@@ -39,39 +39,39 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
-	REG_PID=$!
-	sleep 5
+  ./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
+  REG_PID=$!
+  sleep 5
 }
 
 # startLeader starts the leader in the background
 function startLeader {
   mkdir -p $TMP_PATH
-	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
-	LEADER_PID=$!
-	sleep 5
+  ./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
+  LEADER_PID=$!
+  sleep 5
 }
 
 # startFollowers starts the followers in the background
 function startFollowers {
-	if [ $N -eq 0 ]
-	then
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
+  if [ $N -eq 0 ]
+  then
+    return
+  fi
+  for i in `jot ${N} 1`
+  do
     mkdir -p "${TMP_PATH}-follower-${i}"
-		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
-		FOLLOWER_PID[$i]=$!
-	done
+    ./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
+    FOLLOWER_PID[$i]=$!
+  done
 }
 
 function startFollower() {
-	if [ -z "${FOLLOWER_PID[$1]}" ]
-	then
-		./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
-		FOLLOWER_PID[$1]=$!
-	fi
+  if [ -z "${FOLLOWER_PID[$1]}" ]
+  then
+    ./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
+    FOLLOWER_PID[$1]=$!
+  fi
 }
 
 function clearLogs {
@@ -81,37 +81,37 @@ function clearLogs {
 
 # killRegister kills the register
 function killRegister {
-	kill ${REG_PID}
+  kill ${REG_PID}
 }
 
 # killLeader kills the leader
 function killLeader {
-	kill ${LEADER_PID}
+  kill ${LEADER_PID}
 }
 
 function killFollower() {
-	if [ ! -z "${FOLLOWER_PID[$1]}" ]
-	then
-		kill ${FOLLOWER_PID[$1]}
-		FOLLOWER_PID[$1]=
-	fi
+  if [ ! -z "${FOLLOWER_PID[$1]}" ]
+  then
+    kill ${FOLLOWER_PID[$1]}
+    FOLLOWER_PID[$1]=
+  fi
 }
 
 # killFollowers kills the followers
 function killFollowers {
-	if [ $N -eq 0 ]; then
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
-		killFollower $i
-	done
+  if [ $N -eq 0 ]; then
+    return
+  fi
+  for i in `jot ${N} 1`
+  do
+    killFollower $i
+  done
 }
 
 function killAll {
-	killRegister
-	killLeader
-	killFollowers
+  killRegister
+  killLeader
+  killFollowers
 }
 
 function killOrStart() {
@@ -125,9 +125,9 @@ function killOrStart() {
 }
 
 function passFail() {
-	if [ $1 -eq 0 ]
+  if [ $1 -eq 0 ]
         then
-		PASS_COUNT=$((PASS_COUNT+1))
+    PASS_COUNT=$((PASS_COUNT+1))
                 echo "PASS"
         else
                 echo "FAIL"
@@ -153,115 +153,115 @@ function checkLogs {
 }
 
 function testOneLeader {
-	echo "Starting testOneLeader..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=0
-	startRegister
-	startLeader
-	startFollowers
-	# Let followers be in-sync with leader
-	sleep 3
-	./stupidproducer &>/dev/null
-	passFail $?
-	# Let transactions be complete
-	sleep 3
-	killAll
-	clearLogs
+  echo "Starting testOneLeader..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=0
+  startRegister
+  startLeader
+  startFollowers
+  # Let followers be in-sync with leader
+  sleep 3
+  ./stupidproducer &>/dev/null
+  passFail $?
+  # Let transactions be complete
+  sleep 3
+  killAll
+  clearLogs
 }
 
 function testFollowers {
-	echo "Starting testFollowers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startLeader
-	startFollowers
-	sleep 3
-	./stupidproducer &>/dev/null
-	if [ $? -ne 0 ]
-	then
-		echo "FAIL"
-		killAll
-		clearLogs
-		return
-	fi
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testFollowers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startLeader
+  startFollowers
+  sleep 3
+  ./stupidproducer &>/dev/null
+  if [ $? -ne 0 ]
+  then
+    echo "FAIL"
+    killAll
+    clearLogs
+    return
+  fi
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testRegisterSlowStart {
-	echo "Starting testRegisterSlowStart..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startLeader
-	startFollowers
-	sleep 5
-	startRegister
-	sleep 3
-	./stupidproducer &>/dev/null
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testRegisterSlowStart..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startLeader
+  startFollowers
+  sleep 5
+  startRegister
+  sleep 3
+  ./stupidproducer &>/dev/null
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testLeaderSlowStart {
-	echo "Starting testLeaderSlowStart..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startFollowers
-	startRegister
-	sleep 5
-	startLeader
-	sleep 3
-	./stupidproducer &>/dev/null
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testLeaderSlowStart..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startFollowers
+  startRegister
+  sleep 5
+  startLeader
+  sleep 3
+  ./stupidproducer &>/dev/null
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testAlternatingProducers {
-	echo "Starting testAlternatingProducers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startFollowers
-	startRegister
-	startLeader
-	sleep 3
-	for i in `jot ${N} 1`
-	do
-		./stupidproducer -id="Producer${i}" &>/dev/null
-	done
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testAlternatingProducers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startFollowers
+  startRegister
+  startLeader
+  sleep 3
+  for i in `jot ${N} 1`
+  do
+    ./stupidproducer -id="Producer${i}" &>/dev/null
+  done
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testConcurrentProducers {
-	echo "Starting testConcurrentProducers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startFollowers
-	startRegister
-	startLeader
-	sleep 3
-	for i in `jot ${N} 1`
-	do
-		./stupidproducer -id="Producer${i}" &>/dev/null &
-	done
-	sleep 5
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testConcurrentProducers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startFollowers
+  startRegister
+  startLeader
+  sleep 3
+  for i in `jot ${N} 1`
+  do
+    ./stupidproducer -id="Producer${i}" &>/dev/null &
+  done
+  sleep 5
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testMultipleTopics {
@@ -279,134 +279,134 @@ function testMultipleTopics {
         killAll
         checkLogs
         passFail $?
-	clearLogs
+  clearLogs
 }
 
 function testMultipleTopicsConcurrentProducers {
-	echo "Starting testMultipleTopicsConcurrentProducers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startFollowers
-	startLeader
-	sleep 3
-	for i in `jot ${N} 1`
-	do
-		./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
-		./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
-		./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
-	done
-	sleep 5
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testMultipleTopicsConcurrentProducers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startFollowers
+  startLeader
+  sleep 3
+  for i in `jot ${N} 1`
+  do
+    ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
+    ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
+  done
+  sleep 5
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testCatchUp {
-	echo "Starting testCatchUp..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startLeader
-	sleep 3
-	./stupidproducer &>/dev/null &
-	startFollowers
-	sleep 5
-	killAll
-	checkLogs
+  echo "Starting testCatchUp..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startLeader
+  sleep 3
+  ./stupidproducer &>/dev/null &
+  startFollowers
+  sleep 5
+  killAll
+  checkLogs
         passFail $?
-	clearLogs
+  clearLogs
 }
 
 function testCatchUpMultipleTopics {
-	echo "Starting testCatchUpMultipleTopics..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startLeader
-	sleep 3
+  echo "Starting testCatchUpMultipleTopics..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startLeader
+  sleep 3
         ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
-	startFollowers
-	sleep 5
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  startFollowers
+  sleep 5
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testRestartFollowers {
-	echo "Starting testRestartFollowers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startLeader
-	startFollowers
-	sleep 3
-	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+  echo "Starting testRestartFollowers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startLeader
+  startFollowers
+  sleep 3
+  ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
-	killFollowers
-	sleep 3
-	startFollowers
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  killFollowers
+  sleep 3
+  startFollowers
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testSyncAndRestartFollowers {
-	echo "Starting testSyncAndRestartFollowers..."
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	startRegister
-	startLeader
-	startFollowers
-	sleep 3
-	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+  echo "Starting testSyncAndRestartFollowers..."
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  startRegister
+  startLeader
+  startFollowers
+  sleep 3
+  ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
-	sleep 3
-	killFollowers
-	sleep 1
-	./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
+  sleep 3
+  killFollowers
+  sleep 1
+  ./stupidproducer -topic="topic1" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic2" -id="Producer${i}" &>/dev/null &
         ./stupidproducer -topic="topic3" -id="Producer${i}" &>/dev/null &
-	sleep 3
-	startFollowers
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  sleep 3
+  startFollowers
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 function testRandomKillAndRestart {
-	echo "Starting testRandomKillAndRestart"
-	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=3
-	M=20
-	startRegister
-	startLeader
-	startFollowers
-	sleep 3
-	for i in `jot ${M} 1`
-	do
-		./stupidproducer -id="Producer${i}" &>/dev/null &
-		killOrStart $(((RANDOM % $N)+1))
-		sleep 1
-	done
-	killFollowers
-	sleep 3
-	startFollowers
-	sleep 3
-	killAll
-	checkLogs
-	passFail $?
-	clearLogs
+  echo "Starting testRandomKillAndRestart"
+  TESTS_TOTAL=$((TESTS_TOTAL+1))
+  N=3
+  M=20
+  startRegister
+  startLeader
+  startFollowers
+  sleep 3
+  for i in `jot ${M} 1`
+  do
+    ./stupidproducer -id="Producer${i}" &>/dev/null &
+    killOrStart $(((RANDOM % $N)+1))
+    sleep 1
+  done
+  killFollowers
+  sleep 3
+  startFollowers
+  sleep 3
+  killAll
+  checkLogs
+  passFail $?
+  clearLogs
 }
 
 clearLogs
