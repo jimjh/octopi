@@ -3,8 +3,6 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	"io"
-	"net"
 	"octopi/api/protocol"
 	"octopi/util/log"
 )
@@ -182,9 +180,6 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 // catchUp tries to bring _this_ broker up to date with its leader.
 func (b *Broker) catchUp() error {
 
-	// TODO: what if leader dies while follower is catching up?
-	// FIXME: check for dups in the log
-
 	write := func(request *protocol.Sync) (int64, error) {
 
 		b.lock.Lock()
@@ -212,30 +207,25 @@ func (b *Broker) catchUp() error {
 	for {
 
 		var request protocol.Sync
-		err := b.leader.Receive(&request)
+		if err := b.leader.Receive(&request); nil != err {
+			log.Warn("Unable to receive from leader.")
+			return err
+		}
+
 		log.Debug("Received %v.", request)
 
-		switch err {
-		case nil:
-			offset, err := write(&request)
-			if nil != err {
-				log.Warn("Unable to open log file for %s.", request.Topic)
-			}
-			ack := &protocol.SyncACK{request.Topic, offset}
-			if nil == b.leader.Conn || nil != websocket.JSON.Send(b.leader.Conn, ack) {
-				log.Warn("Unable to ack leader.")
-			}
-			b.cond.Broadcast()
-		case io.EOF:
-			log.Error("Connection with leader lost.")
-			return err
-		default:
-			e, ok := err.(net.Error)
-			if ok && !e.Temporary() {
-				return err
-			}
-			log.Error("Ignoring invalid message from leader:", err)
+		offset, err := write(&request)
+		if nil != err {
+			log.Warn("Unable to open log file for %s.", request.Topic)
+			continue
 		}
+
+		ack := &protocol.SyncACK{request.Topic, offset}
+		if err := b.leader.Acknowledge(ack); nil != err {
+			log.Warn("Unable to ack leader: %s", err.Error())
+		}
+
+		b.cond.Broadcast()
 
 	}
 

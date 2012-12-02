@@ -121,6 +121,20 @@ func (s *Socket) send(endpoint string, request interface{}) error {
 
 }
 
+// Acknowledge makes a single attempt to send an acknowledgement.
+func (s *Socket) Acknowledge(ack interface{}) error {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if nil == s.Conn {
+		return io.EOF
+	}
+
+	return websocket.JSON.Send(s.Conn, ack)
+
+}
+
 // Receive waits on the associated websocket connection and unmarshals the
 // desired. An error is returned is the connection is deemed unsable.
 func (s *Socket) Receive(value interface{}) error {
