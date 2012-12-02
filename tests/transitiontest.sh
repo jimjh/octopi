@@ -11,6 +11,7 @@ RUN_PATH=$PROJECT_PATH/src/octopi/run
 
 # Path of bin folder
 BIN_PATH=${PROJECT_PATH}/bin/darwin_amd64
+TEST_PATH=${PROJECT_PATH}/../tests
 
 TESTS_TOTAL=0
 PASS_COUNT=0
@@ -33,88 +34,7 @@ mv stupidproducer $BIN_PATH
 # Go to bin folder. Assumes all built in here.
 cd $BIN_PATH
 
-# startRegister starts the register in the background
-function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
-	REG_PID=$!
-	sleep 5
-}
-
-# startLeader starts the leader in the background
-function startLeader {
-	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
-	LEADER_PID=$!
-	sleep 5
-}
-
-# startFollowers starts the followers in the background
-function startFollowers {
-	if [ $N -eq 0 ]
-	then
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
-		./broker -conf="${CONFIG_PATH}/follower${i}.json" &
-		FOLLOWER_PID[$i]=$!
-	done
-}
-
-function startFollower() {
-	if [ -z "${FOLLOWER_PID[$1]}" ]
-	then
-		./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
-		FOLLOWER_PID[$1]=$!
-		echo "started follower $1 at ${FOLLOWER_PID[$1]}"
-		N=$((N+1))
-	fi
-}
-
-function clearLogs {
-	cd $BIN_PATH  
-        rm ../tmp/* &>/dev/null
-	cd ..
-	if [ $N -eq 0 ]; then
-		cd $BIN_PATH
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
-		rm tmp-follower${i}/*
-	done
-	cd $BIN_PATH
-}
-
-# killRegister kills the register
-function killRegister {	
-	kill ${REG_PID}
-}
-
-# killLeader kills the leader
-function killLeader {
-	kill ${LEADER_PID}
-}
-
-function killFollower() {
-	if [ ! -z "${FOLLOWER_PID[$1]}" ]
-	then
-		kill ${FOLLOWER_PID[$1]}
-		echo "killed follower $1 at ${FOLLOWER_PID[$1]}"
-		FOLLOWER_PID[$1]=
-		N=$((N-1))
-	fi
-}
-
-# killFollowers kills the followers
-function killFollowers {
-	if [ $N -eq 0 ]; then
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
-		killFollower $i
-	done
-}
+. ${TEST_PATH}/helper.sh
 
 function killAll {
 	killRegister
@@ -188,6 +108,7 @@ function testSimpleTransition {
 	echo "Starting testSimpleTransition"
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	N=3
+	NSTART=3
 	startRegister
 	startLeader
 	startFollowers
@@ -204,24 +125,25 @@ function testSimpleTransition {
 }
 
 function testTransitionAdd {
-        echo "Starting testTransitionAdd..."
-        TESTS_TOTAL=$((TESTS_TOTAL+1))
-        N=1
-        startRegister
-        startLeader
-        startFollowers
-        sleep 3
-        killLeader
-        sleep 2
-        startFollower 2
+    echo "Starting testTransitionAdd..."
+    TESTS_TOTAL=$((TESTS_TOTAL+1))
+    N=1
+	NSTART=3
+    startRegister
+    startLeader
+    startFollowers
+    sleep 3
+    killLeader
+    sleep 2
+    startFollower 2
 	startFollower 3
-        ./stupidproducer &>/dev/null &
-        sleep 3
-        checkFollowerLogs
-        passFail $?
-        killRegister
-        killFollowers
-        clearLogs
+    ./stupidproducer &>/dev/null &
+    sleep 3
+    checkFollowerLogs
+    passFail $?
+    killRegister
+    killFollowers
+    clearLogs
 }
 
 function testRandomTransition {
