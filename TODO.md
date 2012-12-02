@@ -6,7 +6,6 @@
 
 ## Producer
 - Unit Tests
-- Implement redirect
 
 ## Broker
 - test deny self follow

@@ -55,6 +55,7 @@ func (b *Broker) ackFollower(f *Follower) error {
 
 	ack := new(protocol.Ack)
 	if f.conn.RemoteAddr().String() == b.Origin() {
+		log.Warn("Denying follow requests from itself.")
 		ack.Status = protocol.StatusFailure
 	} else {
 
@@ -70,7 +71,8 @@ func (b *Broker) ackFollower(f *Follower) error {
 			}
 		}
 
-		ack.Payload, _ = json.Marshal(ack)
+		ack.Status = protocol.StatusSuccess
+		ack.Payload, _ = json.Marshal(inner)
 
 	}
 
