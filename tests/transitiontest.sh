@@ -55,7 +55,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
+		./broker -conf="${CONFIG_PATH}/follower${i}.json" &
 		FOLLOWER_PID[$i]=$!
 	done
 }
@@ -193,8 +193,9 @@ function testSimpleTransition {
 	startFollowers
 	sleep 3
 	killLeader
-	./stupidproducer &>/dev/null &
 	sleep 3
+	./stupidproducer &>/dev/null &
+	sleep 5
 	checkFollowerLogs
 	passFail $?
 	killRegister
@@ -228,7 +229,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=30
+	M=20
 	startRegister
 	startLeader
 	startFollowers
@@ -239,7 +240,7 @@ function testRandomTransition {
         do
                 ./stupidproducer -id="Producer${i}" &>/dev/null &
 		randNum=$(((RANDOM % $NSTART)+1))
-                if [ $N -gt 1 ] 
+                if [ $N -gt 2 ] 
 		then
 			killOrStart $randNum
 		else
@@ -252,7 +253,7 @@ function testRandomTransition {
 	do
 		startFollower $i
 	done
-	sleep 15
+	sleep 10
 	checkFollowerLogs
 	passFail $?
 	killRegister
@@ -260,8 +261,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-#testSimpleTransition
+testSimpleTransition
 #testTransitionAdd
-testRandomTransition
+#testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"

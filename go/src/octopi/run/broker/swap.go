@@ -27,7 +27,7 @@ func register(ws *websocket.Conn) {
 	var max uint32 = 0
 	var maxhp string
 
-	// deterministically determine the leader using the lowest crc32 hash
+	// deterministically determine the leader using the highest crc32 hash
 	for hp, _ := range insyncSet {
 		cksm := crc32.ChecksumIEEE([]byte(hp))
 		if cksm > max {
