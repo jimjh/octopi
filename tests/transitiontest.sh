@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
+	./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
 	REG_PID=$!
 	sleep 5
 }
@@ -65,6 +65,8 @@ function startFollower() {
 	then
 		./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
 		FOLLOWER_PID[$1]=$!
+		echo "started follower $1 at ${FOLLOWER_PID[$1]}"
+		N=$((N+1))
 	fi
 }
 
@@ -97,7 +99,9 @@ function killFollower() {
 	if [ ! -z "${FOLLOWER_PID[$1]}" ]
 	then
 		kill ${FOLLOWER_PID[$1]}
+		echo "killed follower $1 at ${FOLLOWER_PID[$1]}"
 		FOLLOWER_PID[$1]=
+		N=$((N-1))
 	fi
 }
 
@@ -183,24 +187,81 @@ function checkFollowerLogs {
 function testSimpleTransition {
 	echo "Starting testSimpleTransition"
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
-	N=1
+	N=3
+	startRegister
+	startLeader
+	startFollowers
+	sleep 3
+	killLeader
+	./stupidproducer &>/dev/null &
+	sleep 3
+	checkFollowerLogs
+	passFail $?
+	killRegister
+	killFollowers
+	clearLogs
+}
+
+function testTransitionAdd {
+        echo "Starting testTransitionAdd..."
+        TESTS_TOTAL=$((TESTS_TOTAL+1))
+        N=1
+        startRegister
+        startLeader
+        startFollowers
+        sleep 3
+        killLeader
+        sleep 2
+        startFollower 2
+	startFollower 3
+        ./stupidproducer &>/dev/null &
+        sleep 3
+        checkFollowerLogs
+        passFail $?
+        killRegister
+        killFollowers
+        clearLogs
+}
+
+function testRandomTransition {
+	echo "Starting testRandomTransition..."
+	TESTS_TOTAL=$((TESTS_TOTAL+1))
+	NSTART=3
+	N=3
+	M=30
 	startRegister
 	startLeader
 	startFollowers
 	sleep 3
 	killLeader
 	sleep 2
-	startFollower 2
-	./stupidproducer &>/dev/null
-	sleep 2
-	N=2
+	for i in `jot ${M} 1`
+        do
+                ./stupidproducer -id="Producer${i}" &>/dev/null &
+		randNum=$(((RANDOM % $NSTART)+1))
+                if [ $N -gt 1 ] 
+		then
+			killOrStart $randNum
+		else
+			startFollower $randNum
+		fi
+                sleep 1
+        done
+
+	for i in `jot ${NSTART} 1`
+	do
+		startFollower $i
+	done
+	sleep 15
 	checkFollowerLogs
 	passFail $?
 	killRegister
 	killFollowers
-	clearLogs	
+	clearLogs
 }
 
-testSimpleTransition
+#testSimpleTransition
+#testTransitionAdd
+testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
