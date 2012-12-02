@@ -409,6 +409,7 @@ function testRandomKillAndRestart {
 	clearLogs
 }
 
+clearLogs
 testOneLeader
 testFollowers
 testRegisterSlowStart
