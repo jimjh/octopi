@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
+	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
 	REG_PID=$!
 	sleep 5
 }
@@ -229,7 +229,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=20
+	M=5
 	startRegister
 	startLeader
 	startFollowers
@@ -246,7 +246,7 @@ function testRandomTransition {
 		else
 			startFollower $randNum
 		fi
-                sleep 1
+                sleep 10
         done
 
 	for i in `jot ${NSTART} 1`
@@ -261,8 +261,8 @@ function testRandomTransition {
 	clearLogs
 }
 
-testSimpleTransition
+#testSimpleTransition
 #testTransitionAdd
-#testRandomTransition
+testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"

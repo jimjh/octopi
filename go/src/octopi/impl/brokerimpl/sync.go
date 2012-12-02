@@ -64,8 +64,11 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 // broker's follower set.
 func (f *Follower) caughtUp(broker *Broker) bool {
 
+	log.Info("Catching up with %v", f.hostport)
 	broker.lock.Lock()
 	defer broker.lock.Unlock()
+
+	log.Info("Obtained lock for %v", f.hostport)
 
 	expected := broker.tails()
 	for topic, offset := range expected {

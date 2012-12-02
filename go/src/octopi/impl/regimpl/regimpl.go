@@ -21,14 +21,17 @@ type Register struct {
 	leader string
 	insync map[string]bool
 	lock   sync.Mutex
+	singleton chan int
 }
 
 // NewRegister returns a new Register object
 func NewRegister() *Register {
 	reg := &Register{
 		insync: make(map[string]bool),
+		singleton: make(chan int, 1),
 	}
 
+	reg.singleton <- 1
 	return reg
 }
 
@@ -71,9 +74,15 @@ func (r *Register) LeaderDisconnect() {
 // CheckNewLeader allows re-sending of disconnect requests
 // every interval until a leader is connected
 func (r *Register) CheckNewLeader() {
-	for r.leader == EMPTY {
-		time.Sleep(LEADERWAIT * time.Millisecond)
-		r.LeaderDisconnect()
+	select {
+		case <-r.singleton:
+			for r.leader == EMPTY {
+				time.Sleep(LEADERWAIT * time.Millisecond)
+				r.LeaderDisconnect()
+			}
+			r.singleton <- 1
+		default:
+			// return if an instance already running
 	}
 }
 
