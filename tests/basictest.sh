@@ -73,8 +73,8 @@ function startFollower() {
 }
 
 function clearLogs {
-  rm -r ${TMP_PATH}
-  rm -r ${TMP_PATH}-follower-*
+  rm -r ${TMP_PATH} 2> /dev/null
+  rm -r ${TMP_PATH}-follower-* 2> /dev/null
 }
 
 # killRegister kills the register
