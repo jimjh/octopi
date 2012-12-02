@@ -124,7 +124,7 @@ function checkFollowerLogs {
 		for f in $FOLLOWER1_PATH/*
 		do
 			fname=$(basename "$F")
-			diff $f ../tmp-follower-${i}/$fname
+			diff $f "${TMP_PATH}-follower-${i}/${fname}"
 			if [ $? -ne 0 ] ; then
 				cd $BIN_PATH
 				return 1
