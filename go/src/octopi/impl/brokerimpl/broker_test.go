@@ -7,26 +7,22 @@ import (
 	"testing"
 )
 
-type tester struct {
-	config *Config
-}
-
-func NewTester() *tester {
+func newTestConfig() *Config {
 	options := &config.Config{make(map[string]string)}
 	options.Options["log_dir"] = os.TempDir()
 	options.Options["register"] = ""
-	return &tester{&Config{*options}}
+	return &Config{*options}
 }
 
 // TestTails checks that the tails function returns the sizes of all log files.
 func TestTails(t *testing.T) {
 
-	test := NewTester()
+	config := newTestConfig()
 	expected := make(map[string]int64, 10)
 
 	for i := 0; i < 10; i++ {
 		name := strconv.Itoa(i)
-		log, err := OpenLog(test.config, name, 0)
+		log, err := OpenLog(config, name, 0)
 		log.WriteNext(new(LogEntry))
 		if nil != err {
 			t.Fatal("Unable to open log file.")
@@ -35,7 +31,8 @@ func TestTails(t *testing.T) {
 		log.Close()
 	}
 
-	tails := New(&test.config.Config).tails()
+	broker, _ := New(&config.Config)
+	tails := broker.tails()
 	for topic, size := range tails {
 		if expected[topic] != size {
 			t.Fatalf("Expected %s to have size %d, was %d.", expected[topic], size)

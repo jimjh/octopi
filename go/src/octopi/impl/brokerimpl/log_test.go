@@ -10,8 +10,8 @@ import (
 // TestReadWrite tries reading ten entries from a log file.
 func TestReadWrite(t *testing.T) {
 
-	test := NewTester()
-	log, err := OpenLog(test.config, "temp", 0)
+	config := newTestConfig()
+	log, err := OpenLog(config, "temp", 0)
 
 	if nil != err {
 		t.Fatal("Unable to open log file.")
@@ -31,7 +31,7 @@ func TestReadWrite(t *testing.T) {
 
 	log.Close()
 
-	log, err = OpenLog(test.config, "temp", 0)
+	log, err = OpenLog(config, "temp", 0)
 	if nil != err {
 		t.Fatal("Unable to open log file.")
 	}
