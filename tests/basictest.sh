@@ -43,7 +43,7 @@ function startRegister {
 
 # startLeader starts the leader in the background
 function startLeader {
-  mkdir ../tmp
+  mkdir -p ../tmp
 	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
 	LEADER_PID=$!
 	sleep 5
@@ -57,7 +57,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-    mkdir "../tmp-follower${i}"
+    mkdir -p "../tmp-follower${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
 		FOLLOWER_PID[$i]=$!
 	done
