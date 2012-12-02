@@ -11,6 +11,8 @@ RUN_PATH=$PROJECT_PATH/src/octopi/run
 
 # Path of bin folder
 BIN_PATH=${PROJECT_PATH}/bin/darwin_amd64
+
+# Path of log files
 TMP_PATH=${PROJECT_PATH}/bin/tmp
 
 TESTS_TOTAL=0
@@ -133,11 +135,10 @@ function passFail() {
 }
 
 function checkLogs {
-        cd ${TMP_PATH}
         for i in `jot ${N} 1`
         do
                 shopt -s nullglob
-                for f in $TMP_PATH/*
+                for f in ${TMP_PATH}/*
                 do
                         fname=$(basename "$f")
                         diff $f "${TMP_PATH}-follower-${i}/${fname}"
