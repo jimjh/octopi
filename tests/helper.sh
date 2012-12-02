@@ -15,7 +15,7 @@ function startRegister {
 
 # startFollowers starts the followers in the background
 function startFollowers {
-	if [ $N -eq 0 ]
+	if [ $NSTART -eq 0 ]
 	then
 		return
 	fi
@@ -64,9 +64,6 @@ function killFollower() {
 
 # killFollowers kills the followers
 function killFollowers {
-	if [ $N -eq 0 ]; then
-		return
-	fi
 	for i in `jot ${NSTART} 1`
 	do
 		killFollower $i
