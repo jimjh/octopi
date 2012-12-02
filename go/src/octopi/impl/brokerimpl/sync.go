@@ -2,6 +2,7 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"io"
 	"net"
 	"octopi/api/protocol"
@@ -30,7 +31,7 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 	}
 
 	b.lock.Lock()
-	var ack protocol.FollowACK
+	ack := new(protocol.FollowACK)
 	if nil != b.checkpoints {
 		ack.Truncate = make(Offsets)
 		for topic, checkpoint := range b.checkpoints {
@@ -40,7 +41,9 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 			}
 		}
 	}
-	websocket.JSON.Send(conn, ack)
+
+	inner, _ := json.Marshal(ack)
+	websocket.JSON.Send(conn, &protocol.Ack{protocol.StatusSuccess, inner})
 	b.lock.Unlock()
 
 	log.Debug("Begin synchronizing follower.")
@@ -186,7 +189,7 @@ func (b *Broker) catchUp() error {
 	for {
 
 		var request protocol.Sync
-		err := websocket.JSON.Receive(b.leader, &request)
+		err := b.leader.Receive(&request)
 		log.Debug("Received %v.", request)
 
 		switch err {
@@ -196,7 +199,7 @@ func (b *Broker) catchUp() error {
 				log.Warn("Unable to open log file for %s.", request.Topic)
 			}
 			ack := &protocol.SyncACK{request.Topic, offset}
-			if nil != websocket.JSON.Send(b.leader, ack) {
+			if nil != websocket.JSON.Send(b.leader.Conn, ack) {
 				log.Warn("Unable to ack leader.")
 			}
 			b.cond.Broadcast()

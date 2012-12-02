@@ -3,7 +3,9 @@ package brokerimpl
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"fmt"
+	"math"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/config"
@@ -22,7 +24,7 @@ type Broker struct {
 	followers     map[*Follower]bool         // set of followers
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
-	leader        *websocket.Conn            // connection to the leader
+	leader        *protocol.Socket           // connection to the leader
 	checkpoints   map[string]int64           // checkpoints for each topic log
 	regConn       *websocket.Conn            // connection to the register, used by leader
 	port          int                        // port number of this broker
@@ -42,7 +44,7 @@ type Offsets map[string]int64
 // New takes the host:port of the registry/leader and creates a new broker.
 // Options:
 // - register: host:port of registry/leader
-func New(options *config.Config) *Broker {
+func New(options *config.Config) (*Broker, error) {
 
 	host := options.Get("host", "localhost")
 	port := options.Get("port", "5050")
@@ -57,32 +59,24 @@ func New(options *config.Config) *Broker {
 
 	b.cond = sync.NewCond(&b.lock)
 	b.initLogs()
+	b.initSocket()
 
-	// THESE ARE NOT BRUTE FORCE SPIN LOOPS
-	// THESE ARE SIMPLY RE-TRIES WITH WAITS INBETWEEN
 	if FOLLOWER == b.config.Role() {
-		for !b.register(b.config.Register()) {
-		}
-	} else {
-		b.BecomeLeader()
+		return b, b.register(b.config.Register())
 	}
 
-	return b
+	b.BecomeLeader()
+	return b, nil
 
 }
 
-// LeaderClose closes the connection with leader
-func (b *Broker) LeaderClose() {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.leader.Close()
-}
-
-// Leader change changes the leader connection
-func (b *Broker) LeaderChange(hostport string) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.follow(protocol.HostPort(hostport))
+// initSocket initializes the socket to use to connect to the leader.
+func (b *Broker) initSocket() {
+	b.leader = &protocol.Socket{
+		HostPort: b.config.Register(),
+		Path:     protocol.FOLLOW,
+		Origin:   b.Origin(),
+	}
 }
 
 // initLogs initializes the logs map.
@@ -111,6 +105,21 @@ func (b *Broker) initLogs() {
 
 	}
 
+}
+
+// LeaderClose closes the connection with leader
+func (b *Broker) LeaderClose() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.leader.Close()
+}
+
+// Leader change changes the leader connection
+func (b *Broker) LeaderChange(hostport string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.leader.HostPort = hostport
+	b.register(hostport)
 }
 
 // BecomeLeader returns only after successfully declaring leadership with the
@@ -151,84 +160,31 @@ func (b *Broker) BecomeLeader() error {
 }
 
 // register sends a follow request to the given leader.
-// TODO: implement redirect.
-func (b *Broker) register(hostport string) bool {
+func (b *Broker) register(hostport string) error {
 
-	var leaderHostport protocol.HostPort
-	origin := b.Origin()
-	// establish register endpoint
-	regEndpoint := "ws://" + hostport + "/" + protocol.REDIRECTOR
-
-	for {
-		// dial the register
-		regConn, err := websocket.Dial(regEndpoint, "", origin)
-
-		// failed to dial the register
-		// backoff and try again
-		if nil != err {
-			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
-			backoff()
-			continue
-		}
-
-		var redirect protocol.Ack
-		err = websocket.JSON.Receive(regConn, &redirect)
-
-		if nil != err || redirect.Status != protocol.StatusRedirect {
-			log.Warn("Register is not ready yet")
-			backoff()
-			continue
-		}
-
-		leaderHostport = protocol.HostPort(redirect.Payload)
-
-		regConn.Close()
-		break
-	}
-
-	return b.follow(leaderHostport)
-
-}
-
-func (b *Broker) follow(leader protocol.HostPort) bool {
-
-	var err error
-	endpoint := "ws://" + leader + "/" + protocol.FOLLOW
-	b.leader, err = websocket.Dial(string(endpoint), "", b.Origin())
-
-	// failed to dial to leader! return false and wait re-try
+	follow := &protocol.FollowRequest{b.tails(), b.myHostPort}
+	payload, err := b.leader.Send(follow, math.MaxInt32)
 	if nil != err {
-		log.Warn("Error dialing leader %s: %s", endpoint, err.Error())
-		return false
-	}
-
-	err = websocket.JSON.Send(b.leader, protocol.FollowRequest{b.tails(), b.myHostPort})
-
-	// failed to send to leader! return false and wait re-try
-	if nil != err {
-		log.Warn("Error following %s: ", endpoint, err.Error())
-		return false
+		return err
 	}
 
 	log.Info("Registered with leader.")
 
 	var ack protocol.FollowACK
-	err = websocket.JSON.Receive(b.leader, &ack)
+	err = json.Unmarshal(payload, &ack)
 	if nil != err {
-		return false
+		return err
 	}
 
-	if nil != ack.Truncate {
-		for topic, checkpoint := range ack.Truncate {
-			truncateLog(b.config, topic, checkpoint)
-		}
+	for topic, checkpoint := range ack.Truncate {
+		truncateLog(b.config, topic, checkpoint)
 	}
 
 	// successful connection
 	go b.catchUp()
-	log.Info("Catching up.")
 
-	return true
+	log.Info("Catching up with leader.")
+	return nil
 
 }
 
@@ -257,6 +213,7 @@ func (b *Broker) tails() Offsets {
 
 // origin returns the host:port of this broker.
 func (b *Broker) Origin() string {
+	// FIXME: consistency
 	host, err := os.Hostname()
 	if nil != err {
 		log.Panic(err.Error())
