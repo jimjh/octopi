@@ -68,7 +68,7 @@ func sendMessages(conn *websocket.Conn, id string, msgCnt int) error {
 		}
 
 		if ack.Status != protocol.StatusSuccess {
-			return errors.New("Incorrect Acknoledgement!")
+			return errors.New("Incorrect Acknowledgement!")
 		}
 	}
 
