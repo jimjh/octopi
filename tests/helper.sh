@@ -19,7 +19,7 @@ function startFollowers {
 	then
 		return
 	fi
-	for i in `jot ${N} 1`
+	for i in `jot ${NSTART} 1`
 	do
     		mkdir -p "${TMP_PATH}-follower-${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
@@ -32,6 +32,8 @@ function startFollower() {
 	then
 		./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
 		FOLLOWER_PID[$1]=$!
+		N=$((N+1))
+		echo "Started follower ${1} at ${FOLLOWER_PID[$1]}"
 	fi
 }
 
@@ -54,6 +56,8 @@ function killFollower() {
 	if [ ! -z "${FOLLOWER_PID[$1]}" ]
 	then
 		kill ${FOLLOWER_PID[$1]}
+		echo "Killed follower ${1} at ${FOLLOWER_PID[$1]}"
+		N=$((N-1))
 		FOLLOWER_PID[$1]=
 	fi
 }
@@ -63,7 +67,7 @@ function killFollowers {
 	if [ $N -eq 0 ]; then
 		return
 	fi
-	for i in `jot ${N} 1`
+	for i in `jot ${NSTART} 1`
 	do
 		killFollower $i
 	done
@@ -97,7 +101,7 @@ function passFail() {
 
 function checkLogs {
         cd ${TMP_PATH}
-        for i in `jot ${N} 1`
+        for i in `jot ${NSTART} 1`
         do
                 shopt -s nullglob
                 for f in $TMP_PATH/*
@@ -118,7 +122,7 @@ function checkFollowerLogs {
 	cd $TMP_PATH
 	cd "../tmp-follower-1"
 	FOLLOWER1_PATH=$(pwd)
-	for i in `jot ${N} 1`
+	for i in `jot ${NSTART} 1`
 	do
 		shopt -s nullglob
 		for f in $FOLLOWER1_PATH/*
