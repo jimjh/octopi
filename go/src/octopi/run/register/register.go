@@ -22,22 +22,21 @@ func leaderHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
 	// need to ensure that only one connection access at a time
-	select {
-		case <-singleton:
-			leaderChange(ws)
-			singleton<-1
-		default:
-			// return directly if unavailable
-	}
+	//	select {
+	//		case <-singleton:
+	leaderChange(ws)
+	//			singleton<-1
+	//		default:
+	// return directly if unavailable
+	//	}
 }
-
 
 func leaderChange(ws *websocket.Conn) {
 
 	var leaderhp protocol.HostPort
-        err := websocket.JSON.Receive(ws, &leaderhp)
+	err := websocket.JSON.Receive(ws, &leaderhp)
 
-        log.Info("Received leader request from %v", leaderhp)
+	log.Info("Received leader request from %v", leaderhp)
 
 	// close the connection if there is already a leader
 	if !register.NoLeader() {
