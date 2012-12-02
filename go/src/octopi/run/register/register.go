@@ -21,6 +21,11 @@ var handlerLock sync.Mutex
 // if there is already a leader
 func leaderHandler(ws *websocket.Conn) {
 
+	var leaderhp protocol.HostPort
+        err := websocket.JSON.Receive(ws, &leaderhp)
+
+	log.Info("Received leader request from %v", leaderhp)
+
 	// need to ensure that only one connection access at a time
 	handlerLock.Lock()
 	defer handlerLock.Unlock()
@@ -32,18 +37,16 @@ func leaderHandler(ws *websocket.Conn) {
 		return
 	}
 
-	var leaderhp protocol.HostPort
-	err := websocket.JSON.Receive(ws, &leaderhp)
-
 	if err == io.EOF {
 		register.SetLeader(regimpl.EMPTY)
 		register.LeaderDisconnect()
+		log.Info("Leader %v has disconnected", leaderhp)
 		// XXX: is there a more elegant way? Seems a bit hacky
 		go register.CheckNewLeader()
 		return
 	}
 
-	log.Info("Received leader request from %v", leaderhp)
+	log.Info("Made %v leader", leaderhp)
 
 	register.SetLeader(string(leaderhp))
 
@@ -53,6 +56,7 @@ func leaderHandler(ws *websocket.Conn) {
 
 		// leader has disconnected!
 		if err == io.EOF {
+			log.Info("Leader %v has disconnected", leaderhp)
 			register.SetLeader(regimpl.EMPTY)
 			register.LeaderDisconnect()
 			// XXX: seems a bit hacky...

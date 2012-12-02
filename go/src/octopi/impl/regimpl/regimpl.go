@@ -14,7 +14,7 @@ const (
 const (
 	// time in ms to allow new leader to contact register
 	// before sending new leader requests
-	LEADERWAIT = 10000
+	LEADERWAIT = 5000
 )
 
 type Register struct {

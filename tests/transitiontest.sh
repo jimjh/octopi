@@ -35,7 +35,7 @@ cd $BIN_PATH
 
 # startRegister starts the register in the background
 function startRegister {
-	./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
+	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
 	REG_PID=$!
 	sleep 5
 }
@@ -228,7 +228,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=30
+	M=20
 	startRegister
 	startLeader
 	startFollowers
@@ -239,7 +239,7 @@ function testRandomTransition {
         do
                 ./stupidproducer -id="Producer${i}" &>/dev/null &
 		randNum=$(((RANDOM % $NSTART)+1))
-                if [ $N -gt 1 ] 
+                if [ $N -gt 2 ] 
 		then
 			killOrStart $randNum
 		else
@@ -252,7 +252,7 @@ function testRandomTransition {
 	do
 		startFollower $i
 	done
-	sleep 15
+	sleep 10
 	checkFollowerLogs
 	passFail $?
 	killRegister
