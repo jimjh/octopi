@@ -229,7 +229,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=20
+	M=5
 	startRegister
 	startLeader
 	startFollowers
@@ -246,7 +246,7 @@ function testRandomTransition {
 		else
 			startFollower $randNum
 		fi
-                sleep 1
+                sleep 10
         done
 
 	for i in `jot ${NSTART} 1`
@@ -262,7 +262,7 @@ function testRandomTransition {
 }
 
 testSimpleTransition
-#testTransitionAdd
-#testRandomTransition
+testTransitionAdd
+testRandomTransition
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"
