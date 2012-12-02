@@ -11,6 +11,7 @@ RUN_PATH=$PROJECT_PATH/src/octopi/run
 
 # Path of bin folder
 BIN_PATH=${PROJECT_PATH}/bin/darwin_amd64
+TMP_PATH=${PROJECT_PATH}/bin/tmp
 
 TESTS_TOTAL=0
 PASS_COUNT=0
@@ -43,7 +44,7 @@ function startRegister {
 
 # startLeader starts the leader in the background
 function startLeader {
-  mkdir -p ../tmp
+  mkdir -p $TMP_PATH
 	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
 	LEADER_PID=$!
 	sleep 5
@@ -57,7 +58,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
-    mkdir -p "../tmp-follower${i}"
+    mkdir -p "${TMP_PATH}-follower-${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
 		FOLLOWER_PID[$i]=$!
 	done
@@ -72,18 +73,8 @@ function startFollower() {
 }
 
 function clearLogs {
-	cd $BIN_PATH
-        rm ../tmp/*
-	cd ..
-	if [ $N -eq 0 ]; then
-		cd $BIN_PATH
-		return
-	fi
-	for i in `jot ${N} 1`
-	do
-		rm tmp-follower${i}/*
-	done
-	cd $BIN_PATH
+  rm -r ${TMP_PATH}
+  rm -r ${TMP_PATH}-follower-*
 }
 
 # killRegister kills the register
@@ -142,16 +133,14 @@ function passFail() {
 }
 
 function checkLogs {
-        cd $BIN_PATH
-        cd ../tmp
-        TMP_PATH=$(pwd)
+        cd ${TMP_PATH}
         for i in `jot ${N} 1`
         do
                 shopt -s nullglob
                 for f in $TMP_PATH/*
                 do
                         fname=$(basename "$f")
-                        diff $f ../tmp-follower${i}/$fname
+                        diff $f "${TMP_PATH}-follower-${i}/${fname}"
                         if [ $? -ne 0 ] ; then
                                 cd $BIN_PATH
                                 return 1
