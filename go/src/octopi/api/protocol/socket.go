@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"octopi/util/log"
+	"sync"
 	"time"
 )
 
@@ -27,10 +28,13 @@ type Socket struct {
 	Origin   string          // source origin (See websockets spec)
 	Msg      interface{}     // type of message that will be received
 	Conn     *websocket.Conn // websocket connection
+	lock     sync.Mutex      // lock
 }
 
 // Close closes the connection.
 func (s *Socket) Close() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return s.close()
 }
 
@@ -49,6 +53,9 @@ func (s *Socket) close() error {
 // a channel that can be used to receive messages if there are no errors.
 func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	for attempt := 0; attempt < attempts; attempt++ {
 
 		endpoint := ws + s.HostPort + "/" + s.Path
@@ -63,7 +70,7 @@ func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 
 		// wait for acknowledgement
 		var ack Ack
-		err = s.Receive(&ack)
+		err = s.receive(&ack)
 
 		if nil == err {
 
@@ -118,6 +125,14 @@ func (s *Socket) send(endpoint string, request interface{}) error {
 // Receive waits on the associated websocket connection and unmarshals the
 // desired. An error is returned is the connection is deemed unsable.
 func (s *Socket) Receive(value interface{}) error {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.receive(value)
+
+}
+
+func (s *Socket) receive(value interface{}) error {
 
 	for {
 
