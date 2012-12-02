@@ -20,14 +20,12 @@ import (
 // and the others are followers.
 type Broker struct {
 	config        *Config
-	myHostPort    protocol.HostPort
 	followers     map[*Follower]bool         // set of followers
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
 	leader        *protocol.Socket           // connection to the leader
 	checkpoints   map[string]int64           // checkpoints for each topic log
 	regConn       *websocket.Conn            // connection to the register, used by leader
-	port          int                        // port number of this broker
 	lock          sync.Mutex                 // lock to manage broker access
 	cond          *sync.Cond                 // conditional variable for message log
 }
@@ -46,12 +44,8 @@ type Offsets map[string]int64
 // - register: host:port of registry/leader
 func New(options *config.Config) (*Broker, error) {
 
-	host := options.Get("host", "localhost")
-	port := options.Get("port", "5050")
-
 	b := &Broker{
 		config:        &Config{*options},
-		myHostPort:    protocol.HostPort(host + ":" + port),
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
@@ -144,7 +138,7 @@ func (b *Broker) BecomeLeader() error {
 			continue
 		}
 
-		err = websocket.JSON.Send(b.regConn, b.myHostPort)
+		err = websocket.JSON.Send(b.regConn, b.Origin())
 		if nil != err {
 			backoff()
 			continue
@@ -162,7 +156,7 @@ func (b *Broker) BecomeLeader() error {
 // register sends a follow request to the given leader.
 func (b *Broker) register(hostport string) error {
 
-	follow := &protocol.FollowRequest{b.tails(), b.myHostPort}
+	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
 	payload, err := b.leader.Send(follow, math.MaxInt32)
 	if nil != err {
 		return err
@@ -188,11 +182,6 @@ func (b *Broker) register(hostport string) error {
 
 }
 
-// returns the hostport of the current broker
-func (b *Broker) MyHostport() string {
-	return string(b.myHostPort)
-}
-
 // tails returns the sizes of all log files, organized by their topics.
 func (b *Broker) tails() Offsets {
 
@@ -213,12 +202,7 @@ func (b *Broker) tails() Offsets {
 
 // origin returns the host:port of this broker.
 func (b *Broker) Origin() string {
-	// FIXME: consistency
-	host, err := os.Hostname()
-	if nil != err {
-		log.Panic(err.Error())
-	}
-	return fmt.Sprintf("%s:%d", host, b.port)
+	return fmt.Sprintf("%s:%d", b.config.Host(), b.config.Port())
 }
 
 // gets the log file from b.logs, or open it if it does not exist.
