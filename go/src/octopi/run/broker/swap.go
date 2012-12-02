@@ -40,7 +40,7 @@ func register(ws *websocket.Conn) {
 		log.Info("I have become the new leader. My hostport is: %v", broker.Origin())
 		broker.BecomeLeader()
 	} else {
-		broker.LeaderChange(maxhp)
+		broker.LeaderChange()
 	}
 
 }
