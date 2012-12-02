@@ -33,6 +33,7 @@ mv stupidproducer $BIN_PATH
 # Go to bin folder. Assumes all built in here.
 cd $BIN_PATH
 
+
 # startRegister starts the register in the background
 function startRegister {
 	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
@@ -42,6 +43,7 @@ function startRegister {
 
 # startLeader starts the leader in the background
 function startLeader {
+  mkdir ../tmp
 	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
 	LEADER_PID=$!
 	sleep 5
@@ -54,6 +56,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
+    mkdir "../tmp-follower${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
 		FOLLOWER_PID[$i]=$!
 	done
@@ -111,7 +114,7 @@ function testOneLeader {
 	startFollowers
 	# Let followers be in-sync with leader
 	sleep 3
-	./stupidProducer # &>/dev/null
+	./stupidProducer &>/dev/null
 	if [ $? -eq 0 ]
 	then
 		PASS_COUNT=$((PASS_COUNT+1))
