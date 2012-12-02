@@ -8,6 +8,9 @@ import (
 	"octopi/util/log"
 )
 
+// The Follower struct contains the connection, reported tails of the
+// follower's log files, and the host:port of the follower. The quit channel is
+// used to instruct the follower to stop syncing.
 type Follower struct {
 	conn     *websocket.Conn   // open connection
 	tails    Offsets           // tails of log files

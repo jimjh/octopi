@@ -1,6 +1,6 @@
 // producer: command line tool for testing the producer library.
 // Usage:
-//    ./producer --topic TOPIC BROKER
+//    ./producer --topic TOPIC --broker BROKER
 // topic:    topic to send messages under
 // broker:   host and port number of broker
 
@@ -14,6 +14,7 @@ import (
 	"os"
 )
 
+// main launches a producer instance
 func main() {
 
 	log.SetVerbose(log.DEBUG)
@@ -23,16 +24,14 @@ func main() {
 	var topic = flag.String("topic", "hello", "topic to send message under")
 	flag.Parse()
 
-	p, err := producer.New(*broker, nil)
-	if nil != err {
-		log.Fatal(err.Error())
-	}
+	p := producer.New(*broker, nil)
 
+	defer p.Close()
 	pipe(p, *topic)
-	p.Close()
 
 }
 
+// pipe relays messages from the command line to the producer library.
 func pipe(p *producer.Producer, topic string) {
 
 	reader := bufio.NewReader(os.Stdin)

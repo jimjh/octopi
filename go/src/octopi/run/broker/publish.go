@@ -29,13 +29,16 @@ func producer(conn *websocket.Conn) {
 		}
 
 		log.Info("Received produce request from %v.", conn.RemoteAddr())
+
+		ack := new(protocol.Ack)
 		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
 			log.Error(err.Error())
-			continue
+			ack.Status = protocol.StatusFailure
+		} else {
+			ack.Status = protocol.StatusSuccess
 		}
 		// TODO: should redirect if this node is not the leader
 
-		ack := protocol.Ack{Status: protocol.SUCCESS}
 		websocket.JSON.Send(conn, &ack)
 
 	}

@@ -87,10 +87,10 @@ func redirectHandler(ws *websocket.Conn) {
 	var redirect protocol.Ack
 
 	if register.NoLeader() {
-		redirect.Status = protocol.NOTREADY
+		redirect.Status = protocol.StatusNotReady
 	} else {
-		redirect.Status = protocol.REDIRECT
-		redirect.HostPort = string(register.Leader())
+		redirect.Status = protocol.StatusRedirect
+		redirect.Payload = []byte(register.Leader())
 	}
 
 	// don't need to check if disconnect

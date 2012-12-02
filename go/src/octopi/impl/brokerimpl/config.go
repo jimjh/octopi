@@ -3,6 +3,7 @@ package brokerimpl
 import (
 	"octopi/util/config"
 	"octopi/util/log"
+	"os"
 )
 
 const (
@@ -20,9 +21,12 @@ func (c *Config) Register() string {
 	return c.Get("register")
 }
 
+// If log dir is not given, default to a temporary directory.
+var logDir = os.TempDir()
+
 // LogDir returns the "log_dir" option in the configuration.
 func (c *Config) LogDir() string {
-	return c.Get("log_dir")
+	return c.Get("log_dir", logDir)
 }
 
 // Role returns either "follower" or "leader"

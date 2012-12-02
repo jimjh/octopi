@@ -25,6 +25,9 @@ import (
 // Global broker object - at most one broker per process.
 var broker *brokerimpl.Broker
 
+// Default port to use.
+const PORT = "5050"
+
 // main starts a broker instance.
 // Configuration Options:
 //  - port number
@@ -44,18 +47,18 @@ func main() {
 	var configFile = flag.String("conf", "conf.json", "configuration file")
 	flag.Parse()
 
+	log.Info("Initializing broker with options from %s.", *configFile)
+
 	// init configuration
 	config, err := config.Init(*configFile)
 	checkError(err)
 
-	log.Info("Initializing broker with options from %s.", *configFile)
 	log.Info("Options read were: %v", config)
 
-	port, err := strconv.Atoi(config.Get("port", "5050"))
+	port, err := strconv.Atoi(config.Get("port", PORT))
 	checkError(err)
 
 	broker = brokerimpl.New(config)
-
 	listenHttp(port)
 
 }

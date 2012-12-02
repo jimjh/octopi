@@ -16,8 +16,8 @@ func follower(conn *websocket.Conn) {
 	defer log.Info("Connection with follower closed.")
 
 	var request protocol.FollowRequest
-	if nil != websocket.JSON.Receive(conn, &request) {
-		log.Warn("Ignoring invalid message from %v.", conn.RemoteAddr())
+	if err := websocket.JSON.Receive(conn, &request); nil != err {
+		log.Warn("Ignoring message from %v: %s", conn.RemoteAddr(), err.Error())
 		return
 	}
 

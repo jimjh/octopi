@@ -33,6 +33,7 @@ mv stupidproducer $BIN_PATH
 # Go to bin folder. Assumes all built in here.
 cd $BIN_PATH
 
+
 # startRegister starts the register in the background
 function startRegister {
 	./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
@@ -42,6 +43,7 @@ function startRegister {
 
 # startLeader starts the leader in the background
 function startLeader {
+  mkdir -p ../tmp
 	./broker -conf="${CONFIG_PATH}/leader.json" &>/dev/null &
 	LEADER_PID=$!
 	sleep 5
@@ -55,6 +57,7 @@ function startFollowers {
 	fi
 	for i in `jot ${N} 1`
 	do
+    mkdir -p "../tmp-follower${i}"
 		./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
 		FOLLOWER_PID[$i]=$!
 	done
@@ -69,7 +72,7 @@ function startFollower() {
 }
 
 function clearLogs {
-	cd $BIN_PATH  
+	cd $BIN_PATH
         rm ../tmp/*
 	cd ..
 	if [ $N -eq 0 ]; then
@@ -84,7 +87,7 @@ function clearLogs {
 }
 
 # killRegister kills the register
-function killRegister {	
+function killRegister {
 	kill ${REG_PID}
 }
 
@@ -132,7 +135,7 @@ function passFail() {
 	if [ $1 -eq 0 ]
         then
 		PASS_COUNT=$((PASS_COUNT+1))
-                echo "PASS"     
+                echo "PASS"
         else
                 echo "FAIL"
         fi

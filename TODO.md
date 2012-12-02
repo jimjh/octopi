@@ -25,7 +25,10 @@
 - Implement redirects
 - Implement timer flush
 
-- write generic function in go that opens connections and follows redirects
+## Net
++ write generic function in go that opens connections and follows redirects
++ write generic function that deals with network failures
+- check ACK sequence numbers
 
 - documentation
 - demo app

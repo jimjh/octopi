@@ -21,7 +21,7 @@ func (t *Test) AssertNil(x interface{}, prefix string) {
 	if nil == x {
 		return
 	}
-	t.Error(prefix, x)
+	t.Errorf("%s: variable should be nil, but was %v.", prefix, x)
 }
 
 // AssertNotNil checks if the given object is not nil and logs an error with
@@ -30,7 +30,7 @@ func (t *Test) AssertNotNil(x interface{}, prefix string) {
 	if nil != x {
 		return
 	}
-	t.Error(prefix, x)
+	t.Errorf("%s: variable should not be nil.", prefix)
 }
 
 // AssertEqual uses the given matcher to compare two values. It logs an error
@@ -58,4 +58,11 @@ func (m *StringMatcher) Match(expected interface{}, actual interface{}) bool {
 	estr := expected.(string)
 	astr := actual.(string)
 	return estr == astr
+}
+
+// IntMatcher compares ints for equality.
+type IntMatcher struct{}
+
+func (m *IntMatcher) Match(expected interface{}, actual interface{}) bool {
+	return expected.(int) == actual.(int)
 }

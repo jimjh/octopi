@@ -23,7 +23,7 @@ func main() {
 	topic := flag.String("topic", "seqTopic", "specifies the topic of the producer")
 
 	flag.Parse()
-	
+
 	// register URL
 	regURL := "ws://" + *regHostPort + "/" + protocol.REDIRECTOR
 
@@ -36,11 +36,11 @@ func main() {
 	checkError(err)
 
 	// we were expecting a redirect
-	if redirect.Status != protocol.REDIRECT {
+	if redirect.Status != protocol.StatusRedirect {
 		os.Exit(1)
 	}
 
-	leaderHostPort := redirect.HostPort
+	leaderHostPort := string(redirect.Payload)
 	fmt.Println("Leader HostPort: ", leaderHostPort)
 	publishURL := "ws://" + leaderHostPort + "/" + protocol.PUBLISH
 
@@ -48,6 +48,8 @@ func main() {
 	checkError(err)
 
 	err = sendMessages(leadConn, *topic, *myId, *numMsgs)
+	checkError(err)
+
 }
 
 func sendMessages(conn *websocket.Conn, topic string, id string, msgCnt int) error {
@@ -69,8 +71,8 @@ func sendMessages(conn *websocket.Conn, topic string, id string, msgCnt int) err
 			return err
 		}
 
-		if ack.Status != protocol.SUCCESS {
-			return errors.New("Incorrect Acknoledgement!")
+		if ack.Status != protocol.StatusSuccess {
+			return errors.New("Incorrect Acknowledgement!")
 		}
 	}
 

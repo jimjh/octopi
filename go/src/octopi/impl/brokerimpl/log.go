@@ -10,7 +10,7 @@ import (
 	"io"
 	"octopi/api/protocol"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 // Log is a file to which brokers append messages. Not thread-safe, so only one
@@ -26,7 +26,7 @@ type LogEntry struct {
 }
 
 // Default file permission.
-const PERM os.FileMode = 0666
+const perm os.FileMode = 0644
 
 // Log file extension.
 const EXT = ".ocp"
@@ -34,8 +34,8 @@ const EXT = ".ocp"
 // OpenLog creates/opens a log file with a new file pointer.
 func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
-	name := path.Join(config.LogDir(), topic+EXT)
-	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, PERM)
+	name := filepath.Join(config.LogDir(), topic+EXT)
+	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, perm)
 	if nil != err {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
 // TruncateLog truncates log for the given topic at the specified offset.
 func truncateLog(config *Config, topic string, offset int64) error {
-	name := path.Join(config.LogDir(), topic+EXT)
+	name := filepath.Join(config.LogDir(), topic+EXT)
 	return os.Truncate(name, offset)
 }
 
