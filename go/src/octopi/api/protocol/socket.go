@@ -133,6 +133,10 @@ func (s *Socket) Receive(value interface{}) error {
 
 func (s *Socket) receive(value interface{}) error {
 
+	if nil == s.Conn {
+		return io.EOF
+	}
+
 	for {
 
 		err := websocket.JSON.Receive(s.Conn, value)

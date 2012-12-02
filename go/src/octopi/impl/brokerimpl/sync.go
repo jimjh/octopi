@@ -202,7 +202,7 @@ func (b *Broker) catchUp() error {
 				log.Warn("Unable to open log file for %s.", request.Topic)
 			}
 			ack := &protocol.SyncACK{request.Topic, offset}
-			if nil != websocket.JSON.Send(b.leader.Conn, ack) {
+			if nil == b.leader.Conn || nil != websocket.JSON.Send(b.leader.Conn, ack) {
 				log.Warn("Unable to ack leader.")
 			}
 			b.cond.Broadcast()
