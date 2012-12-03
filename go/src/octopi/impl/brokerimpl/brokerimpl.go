@@ -182,13 +182,17 @@ func (b *Broker) register() error {
 	}
 
 	for topic, checkpoint := range ack.Truncate {
+		if log, exists := b.logs[topic]; exists {
+			log.Close()
+			delete(b.logs, topic)
+		}
 		if err := truncateLog(b.config, topic, checkpoint); nil != err {
 			return err
 		}
 	}
 
 	// successful connection
-	go b.catchUp()
+	go b.failSafeCatchUp()
 
 	log.Info("Catching up with leader.")
 	return nil

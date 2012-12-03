@@ -21,6 +21,7 @@ const (
 type Register struct {
 	leader string
 	insync map[string]bool
+	seenBrokers map[string]bool
 	lock   sync.Mutex
 	singleton chan int
 }
@@ -29,6 +30,7 @@ type Register struct {
 func NewRegister() *Register {
 	reg := &Register{
 		insync: make(map[string]bool),
+		seenBrokers: make(map[string]bool),
 		singleton: make(chan int, 1),
 	}
 
@@ -49,6 +51,7 @@ func (r *Register) SetLeader(hostport string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.leader = hostport
+	r.seenBrokers[hostport] = true
 	log.Info("SetLeader setting leader to be %v", r.leader)
 }
 
@@ -66,6 +69,15 @@ func (r *Register) LeaderDisconnect() {
 
 	r.lock.Unlock()
 
+	if len(tmpSet)==0{
+		r.lock.Lock()
+		log.Warn("Set of followers is 0! Notify all seen brokers!!")
+		for hp, _ := range r.seenBrokers {
+			tmpSet[hp] = true
+		}
+		r.lock.Unlock()
+	}
+
 	// notify all followers with the same set for consistency
 	// and only remove from original set if fail to contact
 	for hp, _ := range tmpSet {
@@ -79,10 +91,9 @@ func (r *Register) CheckNewLeader() {
 	select {
 		case <-r.singleton:
 			for r.leader == EMPTY {
+				r.LeaderDisconnect()
 				time.Sleep(LEADERWAIT * time.Millisecond)
 				log.Info("CheckNewLeader leader is ", r.leader)
-				r.LeaderDisconnect()
-				log.Info("Is r.leader==EMPTY? %v", r.leader==EMPTY)
 			}
 			r.singleton <- 1
 		default:
@@ -126,6 +137,7 @@ func (r *Register) AddFollower(follower string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.insync[follower] = true
+	r.seenBrokers[follower] = true
 }
 
 // RemoveFollower removes a follower from the list of in-sync followers

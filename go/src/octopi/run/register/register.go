@@ -45,7 +45,6 @@ func leaderChange(ws *websocket.Conn) {
 
 	if err == io.EOF {
 		register.SetLeader(regimpl.EMPTY)
-		register.LeaderDisconnect()
 		log.Info("Leader %v has disconnected", leaderhp)
 		// XXX: is there a more elegant way? Seems a bit hacky
 		go register.CheckNewLeader()
@@ -64,7 +63,6 @@ func leaderChange(ws *websocket.Conn) {
 		if err == io.EOF {
 			log.Info("Leader %v has disconnected", leaderhp)
 			register.SetLeader(regimpl.EMPTY)
-			register.LeaderDisconnect()
 			// XXX: seems a bit hacky...
 			go register.CheckNewLeader()
 			return

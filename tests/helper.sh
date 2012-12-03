@@ -22,7 +22,7 @@ function startFollowers {
   for i in `jot ${NSTART} 1`
   do
     mkdir -p "${TMP_PATH}-follower-${i}"
-    ./broker -conf="${CONFIG_PATH}/follower${i}.json" &
+    ./broker -conf="${CONFIG_PATH}/follower${i}.json" &> ~/Desktop/output-${i}.log &
     FOLLOWER_PID[$i]=$!
     echo "Started follower $i at ${FOLLOWER_PID[$i]}"
   done

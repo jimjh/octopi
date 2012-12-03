@@ -61,6 +61,7 @@ func (b *Broker) ackFollower(f *Follower) error {
 		inner := new(protocol.FollowACK)
 		inner.Truncate = make(Offsets)
 		for topic, checkpoint := range b.checkpoints {
+			log.Info("Checkpoint is %v", checkpoint)
 			if f.tails[topic] > checkpoint {
 				inner.Truncate[topic] = checkpoint
 				f.tails[topic] = checkpoint
@@ -88,11 +89,11 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 	expected := broker.tails()
 	for topic, offset := range expected {
 		// FIXME
-		// if offset < f.tails[topic] {
+		//if offset == f.tails[topic]+1 {
 		//	log.Panic("offset: %d, tail: %d", offset, f.tails[topic])
 		//}
 		if offset != f.tails[topic] {
-			//log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
+			log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
 			return false
 		}
 	}
@@ -115,7 +116,7 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.
 	websocket.JSON.Send(broker.regConn, addFollow)
-	// checkError(err) // FIXME: exiting is not the correct thing to do
+	// FIXME: exiting is not the correct thing to do
 
 	return true
 
@@ -202,6 +203,7 @@ func (b *Broker) catchUp() error {
 		}
 
 		stat, err := file.Stat()
+		log.Debug("File size on %s is %d.", b.Origin(), stat.Size())
 		if nil != err {
 			return 0, err
 		}
@@ -235,4 +237,12 @@ func (b *Broker) catchUp() error {
 
 	return nil
 
+}
+
+func (b *Broker) failSafeCatchUp (){
+	err := b.catchUp()
+	if nil != err{
+		log.Warn("Changing leader %s", err.Error())
+		b.ChangeLeader()
+	}
 }
