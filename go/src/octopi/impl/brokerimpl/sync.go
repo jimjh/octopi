@@ -218,8 +218,6 @@ func (b *Broker) catchUp() error {
 			return err
 		}
 
-		log.Debug("Received %v.", request)
-
 		offset, err := write(&request)
 		if nil != err {
 			log.Warn("Unable to open log file for %s.", request.Topic)

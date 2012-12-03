@@ -84,7 +84,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=5
+	M=20
 	startRegister
 	startLeader
 	sleep 2
@@ -96,20 +96,20 @@ function testRandomTransition {
         do
                 ./stupidproducer -id="Producer${i}" &>/dev/null &
 		randNum=$(((RANDOM % $NSTART)+1))
-                if [ $N -gt 2 ]
+                if [ $N -gt 1 ]
 		then
 			killOrStart $randNum
 		else
 			startFollower $randNum
 		fi
-                sleep 10
+                sleep 8
         done
 
 	for i in `jot ${NSTART} 1`
 	do
 		startFollower $i
 	done
-	sleep 10
+	sleep 20
 	checkFollowerLogs
 	passFail $?
 	killRegister

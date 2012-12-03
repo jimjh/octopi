@@ -39,7 +39,10 @@ func register(ws *websocket.Conn) {
 		log.Debug("I am the new leader.")
 	} else {
 		log.Debug("%v should become the new leader.", maxhp)
-		broker.ChangeLeader()
+		err := broker.ChangeLeader()
+		if nil != err{
+			log.Warn("Got Error %v from ChangeLeader", err)
+		}
 	}
 
 }

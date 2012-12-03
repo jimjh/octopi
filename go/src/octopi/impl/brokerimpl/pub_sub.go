@@ -112,7 +112,6 @@ func (b *Broker) replicate(topic string, entry *LogEntry) error {
 			// lost
 			b.removeFollower(follower)
 		}
-		log.Info("Received ACK from %v", follower.hostport)
 	}
 
 	return nil

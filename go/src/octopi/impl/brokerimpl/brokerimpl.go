@@ -110,11 +110,12 @@ func (b *Broker) initLogs() {
 // ChangeLeader closes the current leader connection and re-registers.
 func (b *Broker) ChangeLeader() error {
 
+	b.leader.Reset(b.config.Register())
+	log.Info("Reset to be %v", b.config.Register())
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	b.leader.Reset(b.config.Register())
-	log.Info("Reset to be %v", b.config.Register())
 	return b.register()
 
 }
@@ -127,11 +128,12 @@ func (b *Broker) BecomeLeader() error {
 	endpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
 	origin := b.Origin()
 
+	log.Debug("Resetting...")
+	b.leader.Reset(origin)
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	log.Debug("Resetting...")
-	b.leader.Reset(origin)
 
 	for {
 
@@ -165,7 +167,7 @@ func (b *Broker) register() error {
 
 	log.Info("In register()")
 	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
-	payload, err := b.leader.Send(follow, 5)
+	payload, err := b.leader.Send(follow, math.MaxInt32, b.Origin())
 	tmp := math.MaxInt32
 	tmp = tmp
 	if nil != err {

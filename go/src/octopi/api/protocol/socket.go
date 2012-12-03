@@ -58,12 +58,16 @@ func (s *Socket) close() error {
 // succeeds or exceeds the maximum number of retries. If it encounters a
 // redirect, the enclosed hostport is used as to find the new endpoint. Returns
 // a channel that can be used to receive messages if there are no errors.
-func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
+func (s *Socket) Send(request interface{}, attempts int, origin string) ([]byte, error) {
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	for attempt := 0; attempt < attempts; attempt++ {
+
+		if s.HostPort==origin{
+			return nil, fmt.Errorf("Should not dial yourself!")
+		}
 
 		endpoint := ws + s.HostPort + "/" + s.Path
 
