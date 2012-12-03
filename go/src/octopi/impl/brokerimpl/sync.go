@@ -100,7 +100,7 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 	// check if follower already in set. if so, delete prev entry.
 	for follower, _ := range broker.followers {
-		if f.hostport==follower.hostport{
+		if f.hostport == follower.hostport {
 			delete(broker.followers, follower)
 		}
 	}
@@ -155,13 +155,15 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 	}
 
 	defer file.Close()
+	var total uint32 = uint32(f.tails[topic])
+	log.Debug("Started with %d.", total)
 
 	for {
 
 		// read next entry
 		entry, err := file.ReadNext()
 		if nil != err {
-			return nil
+			return nil // EOF
 		}
 
 		// send to follower
@@ -170,6 +172,10 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 			return err
 		}
 
+		total += entry.length() + 4
+		log.Debug("Send %v.", entry.RequestId)
+		log.Debug("Sent %d to %s.", total, f.conn.RemoteAddr())
+
 		// wait for ack
 		var ack protocol.SyncACK
 		if err = websocket.JSON.Receive(f.conn, &ack); nil != err {
@@ -177,6 +183,7 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 		}
 
 		f.tails[topic] = ack.Offset
+		log.Debug("%s is at %d.", f.conn.RemoteAddr(), ack.Offset)
 
 	}
 
@@ -239,9 +246,9 @@ func (b *Broker) catchUp() error {
 
 }
 
-func (b *Broker) failSafeCatchUp (){
+func (b *Broker) failSafeCatchUp() {
 	err := b.catchUp()
-	if nil != err{
+	if nil != err {
 		log.Warn("Changing leader %s", err.Error())
 		b.ChangeLeader()
 	}

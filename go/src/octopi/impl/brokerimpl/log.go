@@ -9,6 +9,7 @@ import (
 	"hash/crc32"
 	"io"
 	"octopi/api/protocol"
+	debug "octopi/util/log"
 	"os"
 	"path/filepath"
 )
@@ -100,6 +101,7 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 		bail()
 		return err
 	}
+	debug.Info("wrote request %v.", entry.RequestId)
 
 	return nil
 
@@ -205,7 +207,8 @@ func (entry *LogEntry) decode(buffer []byte) error {
 func (entry *LogEntry) encode() ([]byte, error) {
 
 	n := entry.length()
-	writer := new(bytes.Buffer)
+	buffer := make([]byte, 0, n)
+	writer := bytes.NewBuffer(buffer)
 
 	// write checksum
 	err := binary.Write(writer, binary.LittleEndian, entry.Checksum)
