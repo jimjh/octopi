@@ -24,6 +24,7 @@ function startFollowers {
     mkdir -p "${TMP_PATH}-follower-${i}"
     ./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
     FOLLOWER_PID[$i]=$!
+    echo "Started follower $i at ${FOLLOWER_PID[$i]}"
   done
 }
 
