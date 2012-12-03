@@ -31,9 +31,7 @@ type Socket struct {
 }
 
 func (s *Socket) Reset(addr string) {
-	log.Debug("reset waiting for lock.")
 	s.lock.Lock()
-	log.Debug("reset obtained lock.")
 	defer s.lock.Unlock()
 	s.close()
 	s.HostPort = addr
@@ -179,13 +177,13 @@ func (s *Socket) receive(value interface{}) error {
 			return err
 		default:
 			e, ok := err.(net.Error)
-			if ok && !e.Temporary() {
-				s.close()
-				return err
+			if ok && e.Temporary() {
+				continue
 			}
 		}
 
-		log.Warn("Ignoring invalid message from %s.", conn.RemoteAddr())
+		s.close()
+		return err
 
 	}
 
