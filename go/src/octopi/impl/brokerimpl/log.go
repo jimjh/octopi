@@ -18,6 +18,7 @@ import (
 // goroutine should use the log at a time.
 type Log struct {
 	os.File
+	lastWritten	[]byte
 }
 
 // LogEntry is an entry in the log file. The file is a sequence of LogEntries.
@@ -51,7 +52,7 @@ func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 		return nil, err
 	}
 
-	return &Log{*file}, nil
+	return &Log{*file, []byte("")}, nil
 
 }
 
@@ -92,6 +93,10 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 	checkpoint, _ := log.Seek(0, os.SEEK_CUR)
 	bail := func() { log.Seek(checkpoint, os.SEEK_SET) }
 
+	if string(entry.RequestId) == string(log.lastWritten) {
+		return nil
+	}
+
 	if err := log.writeLength(entry); nil != err {
 		bail()
 		return err
@@ -101,6 +106,8 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 		bail()
 		return err
 	}
+
+	log.lastWritten = entry.RequestId
 	debug.Info("wrote request %v.", entry.RequestId)
 
 	return nil
