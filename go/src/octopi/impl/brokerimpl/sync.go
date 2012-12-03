@@ -32,14 +32,14 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 		return err
 	}
 
-	log.Debug("Begin synchronizing follower.")
+	log.Debug("Begin synchronizing follower %v.", follower.hostport)
 	for !follower.caughtUp(b) {
 		if err := follower.catchUp(b); nil != err {
 			return err
 		}
 	}
 
-	log.Info("Follower has fully caught up.")
+	log.Info("Follower %v has fully caught up.", follower.hostport)
 
 	<-follower.quit
 	return nil
@@ -83,7 +83,7 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 	broker.lock.Lock()
 	defer broker.lock.Unlock()
 
-	log.Info("Obtained lock for %v", f.hostport)
+	//log.Info("Obtained lock for %v", f.hostport)
 
 	expected := broker.tails()
 	for topic, offset := range expected {
@@ -92,7 +92,7 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 		//	log.Panic("offset: %d, tail: %d", offset, f.tails[topic])
 		//}
 		if offset != f.tails[topic] {
-			log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
+			//log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
 			return false
 		}
 	}

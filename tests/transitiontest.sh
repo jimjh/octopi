@@ -84,7 +84,7 @@ function testRandomTransition {
 	TESTS_TOTAL=$((TESTS_TOTAL+1))
 	NSTART=3
 	N=3
-	M=20
+	M=10
 	startRegister
 	startLeader
 	sleep 2
@@ -109,7 +109,7 @@ function testRandomTransition {
 	do
 		startFollower $i
 	done
-	sleep 20
+	sleep 30
 	checkFollowerLogs
 	passFail $?
 	killRegister
