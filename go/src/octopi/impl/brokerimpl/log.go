@@ -54,7 +54,7 @@ func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 
 }
 
-// TruncateLog truncates log for the given topic at the specified offset.
+// truncateLog truncates log for the given topic at the specified offset.
 func truncateLog(config *Config, topic string, offset int64) error {
 	name := filepath.Join(config.LogDir(), topic+EXT)
 	return os.Truncate(name, offset)

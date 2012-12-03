@@ -30,6 +30,15 @@ type Socket struct {
 	lock     sync.Mutex      // lock
 }
 
+func (s *Socket) Reset(addr string) {
+	log.Debug("reset waiting for lock.")
+	s.lock.Lock()
+	log.Debug("reset obtained lock.")
+	defer s.lock.Unlock()
+	s.close()
+	s.HostPort = addr
+}
+
 // Close closes the connection.
 func (s *Socket) Close() error {
 	s.lock.Lock()
@@ -43,6 +52,7 @@ func (s *Socket) close() error {
 	if nil == conn {
 		return nil
 	}
+	log.Info("Closed connection with %s.", conn.RemoteAddr())
 	return conn.Close()
 }
 
@@ -63,7 +73,7 @@ func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 		err := s.send(endpoint, request)
 		if nil != err {
 			log.Warn("Unable to open connection with %s: %s", endpoint, err.Error())
-			backoff()
+			s.backoff()
 			continue
 		}
 
@@ -90,7 +100,7 @@ func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 		}
 
 		s.close()
-		backoff()
+		s.backoff()
 
 	}
 
@@ -99,7 +109,8 @@ func (s *Socket) Send(request interface{}, attempts int) ([]byte, error) {
 }
 
 // send makes a single attempt to dial the endpoint if it's closed. Then it
-// sends the given request.
+// sends the given request. If a request is not provided, it returns after
+// dialing the websocket connection.
 func (s *Socket) send(endpoint string, request interface{}) error {
 
 	var err error
@@ -111,8 +122,7 @@ func (s *Socket) send(endpoint string, request interface{}) error {
 		}
 	}
 
-	err = websocket.JSON.Send(s.Conn, request)
-	if nil != err {
+	if err := websocket.JSON.Send(s.Conn, request); nil != err {
 		s.close()
 		return err
 	}
@@ -145,15 +155,21 @@ func (s *Socket) Receive(value interface{}) error {
 
 }
 
+// receive waits on the connection for a single message. Caller must have
+// socket lock before invoking this.
 func (s *Socket) receive(value interface{}) error {
 
 	if nil == s.Conn {
 		return io.EOF
 	}
 
+	conn := s.Conn
+	s.lock.Unlock()
+	defer s.lock.Lock()
+
 	for {
 
-		err := websocket.JSON.Receive(s.Conn, value)
+		err := websocket.JSON.Receive(conn, value)
 
 		switch err {
 		case nil:
@@ -169,7 +185,7 @@ func (s *Socket) receive(value interface{}) error {
 			}
 		}
 
-		log.Warn("Ignoring invalid message from %s.", s.Conn.RemoteAddr())
+		log.Warn("Ignoring invalid message from %s.", conn.RemoteAddr())
 
 	}
 
@@ -178,9 +194,15 @@ func (s *Socket) receive(value interface{}) error {
 }
 
 // backoff sleeps for a random number of milliseconds that is less than the
-// MAX_RETRY_INTERVAL.
-func backoff() {
+// MAX_RETRY_INTERVAL. This must be invoked while the caller is holding on to
+// the socket lock.
+func (s *Socket) backoff() {
+
+	s.lock.Unlock()
+	defer s.lock.Lock()
+
 	duration := time.Duration(rand.Intn(MAX_RETRY_INTERVAL))
 	log.Debug("Backing off %d milliseconds.", duration)
 	time.Sleep(duration * time.Millisecond)
+
 }

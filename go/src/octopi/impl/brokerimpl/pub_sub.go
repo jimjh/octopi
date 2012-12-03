@@ -136,8 +136,8 @@ func (b *Broker) removeFollower(follower *Follower) {
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.
-	err := websocket.JSON.Send(b.regConn, removeFollow)
-	checkError(err)
+	websocket.JSON.Send(b.regConn, removeFollow)
+	// checkError(err) // FIXME: exiting is not the correct thing to do
 
 	follower.quit <- nil
 

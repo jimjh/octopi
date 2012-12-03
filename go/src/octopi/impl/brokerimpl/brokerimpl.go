@@ -11,7 +11,6 @@ import (
 	"octopi/api/protocol"
 	"octopi/util/config"
 	"octopi/util/log"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -50,6 +49,7 @@ func New(options *config.Config) (*Broker, error) {
 	b := &Broker{
 		role:          config.Role(),
 		config:        config,
+		checkpoints:   make(map[string]int64),
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
@@ -107,15 +107,13 @@ func (b *Broker) initLogs() {
 
 }
 
-// Leader change changes the leader connection
-func (b *Broker) LeaderChange() error {
+// ChangeLeader closes the current leader connection and re-registers.
+func (b *Broker) ChangeLeader() error {
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	b.leader.Close()
-	b.leader.HostPort = b.config.Register()
-
+	b.leader.Reset(b.config.Register())
 	return b.register()
 
 }
@@ -125,26 +123,27 @@ func (b *Broker) LeaderChange() error {
 // and checkpoints the tails of all open logs.
 func (b *Broker) BecomeLeader() error {
 
-	var err error
-	regEndpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
+	endpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
 	origin := b.Origin()
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	b.leader.Close()
+	log.Debug("Resetting...")
+	b.leader.Reset(origin)
 
 	for {
-		// dial the register
-		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+
+		var err error
+		b.regConn, err = websocket.Dial(endpoint, "", origin)
 
 		if nil != err {
-			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
+			log.Warn("Error dialing %s: %s", endpoint, err.Error())
 			backoff()
 			continue
 		}
 
-		err = websocket.JSON.Send(b.regConn, b.Origin())
+		err = websocket.JSON.Send(b.regConn, origin)
 		if nil != err {
 			backoff()
 			continue
@@ -156,7 +155,6 @@ func (b *Broker) BecomeLeader() error {
 
 	b.checkpoints = b.tails()
 	b.role = LEADER
-
 	return nil
 
 }
@@ -173,13 +171,14 @@ func (b *Broker) register() error {
 	log.Info("Registered with leader.")
 
 	var ack protocol.FollowACK
-	err = json.Unmarshal(payload, &ack)
-	if nil != err {
+	if err := json.Unmarshal(payload, &ack); nil != err {
 		return err
 	}
 
 	for topic, checkpoint := range ack.Truncate {
-		truncateLog(b.config, topic, checkpoint)
+		if err := truncateLog(b.config, topic, checkpoint); nil != err {
+			return err
+		}
 	}
 
 	// successful connection
@@ -229,13 +228,6 @@ func (b *Broker) getOrOpenLog(topic string) (*Log, error) {
 	b.logs[topic] = file
 	return file, nil
 
-}
-
-// XXX: is it appropriate to exit?
-func checkError(err error) {
-	if err != nil {
-		os.Exit(1)
-	}
 }
 
 func backoff() {
