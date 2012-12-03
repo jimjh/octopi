@@ -3,6 +3,7 @@ package regimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"octopi/api/protocol"
+	"octopi/util/log"
 	"sync"
 	"time"
 )
@@ -48,6 +49,7 @@ func (r *Register) SetLeader(hostport string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.leader = hostport
+	log.Info("SetLeader setting leader to be %v", r.leader)
 }
 
 // LeaderDisconnect empties out the leader and notifies followers
@@ -78,17 +80,22 @@ func (r *Register) CheckNewLeader() {
 		case <-r.singleton:
 			for r.leader == EMPTY {
 				time.Sleep(LEADERWAIT * time.Millisecond)
+				log.Info("CheckNewLeader leader is ", r.leader)
 				r.LeaderDisconnect()
+				log.Info("Is r.leader==EMPTY? %v", r.leader==EMPTY)
 			}
 			r.singleton <- 1
 		default:
 			// return if an instance already running
 	}
+	log.Info("Returning from CheckNewLeader")
 }
 
 // notifyFollowers notifies the followers of a change in leader
 func (r *Register) notifyFollower(follower string, is map[string]bool) {
 	conn, err := websocket.Dial("ws://"+follower+"/"+protocol.SWAP, "", "http://"+follower+"/")
+
+	log.Info("Notifying %v", follower)
 
 	// failed to contact the follower
 	if nil != err {

@@ -76,7 +76,7 @@ function testTransitionAdd {
     passFail $?
     killRegister
     killFollowers
-    clearLogs
+    #clearLogs
 }
 
 function testRandomTransition {
@@ -114,9 +114,10 @@ function testRandomTransition {
 	passFail $?
 	killRegister
 	killFollowers
-	# clearLogs
+	#clearLogs
 }
 
+clearLogs
 #testSimpleTransition
 #testTransitionAdd
 testRandomTransition

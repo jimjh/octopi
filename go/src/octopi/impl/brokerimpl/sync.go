@@ -97,11 +97,15 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 		}
 	}
 
+	// check if follower already in set. if so, delete prev entry.
+	for follower, _ := range broker.followers {
+		if f.hostport==follower.hostport{
+			delete(broker.followers, follower)
+		}
+	}
+
 	// add to set of followers
 	broker.followers[f] = true
-	for follower, _ := range broker.followers {
-		log.Info("Followers include: %v", follower.hostport)
-	}
 
 	// create struct to communicate with register
 	var addFollow protocol.InsyncChange

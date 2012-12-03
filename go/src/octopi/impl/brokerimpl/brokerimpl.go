@@ -114,6 +114,7 @@ func (b *Broker) ChangeLeader() error {
 	defer b.lock.Unlock()
 
 	b.leader.Reset(b.config.Register())
+	log.Info("Reset to be %v", b.config.Register())
 	return b.register()
 
 }
@@ -162,8 +163,11 @@ func (b *Broker) BecomeLeader() error {
 // register sends a follow request to the given leader.
 func (b *Broker) register() error {
 
+	log.Info("In register()")
 	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
-	payload, err := b.leader.Send(follow, math.MaxInt32)
+	payload, err := b.leader.Send(follow, 5)
+	tmp := math.MaxInt32
+	tmp = tmp
 	if nil != err {
 		return err
 	}

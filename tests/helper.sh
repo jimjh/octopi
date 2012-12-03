@@ -8,21 +8,21 @@ function startLeader {
 
 # startRegister starts the register in the background
 function startRegister {
-  ./register -conf="${CONFIG_PATH}/reg.json" &>/dev/null &
+  ./register -conf="${CONFIG_PATH}/reg.json" &>~/Desktop/reg.txt &
   REG_PID=$!
   sleep 5
 }
 
 # startFollowers starts the followers in the background
 function startFollowers {
-  if [ $N -eq 0 ]
+  if [ $NSTART -eq 0 ]
   then
     return
   fi
-  for i in `jot ${N} 1`
+  for i in `jot ${NSTART} 1`
   do
     mkdir -p "${TMP_PATH}-follower-${i}"
-    ./broker -conf="${CONFIG_PATH}/follower${i}.json" &>/dev/null &
+    ./broker -conf="${CONFIG_PATH}/follower${i}.json" &
     FOLLOWER_PID[$i]=$!
     echo "Started follower $i at ${FOLLOWER_PID[$i]}"
   done
@@ -31,8 +31,10 @@ function startFollowers {
 function startFollower() {
   if [ -z "${FOLLOWER_PID[$1]}" ]
   then
-    ./broker -conf="${CONFIG_PATH}/follower${1}.json" &>/dev/null &
+    ./broker -conf="${CONFIG_PATH}/follower${1}.json" &
     FOLLOWER_PID[$1]=$!
+    echo "Started follower $1 at ${FOLLOWER_PID[$1]}"
+    N=$((N+1))
   fi
 }
 
@@ -55,16 +57,18 @@ function killFollower() {
   if [ ! -z "${FOLLOWER_PID[$1]}" ]
   then
     kill ${FOLLOWER_PID[$1]}
+    echo "Killed follower $1 at ${FOLLOWER_PID[$1]}"
     FOLLOWER_PID[$1]=
+    N=$((N-1))
   fi
 }
 
 # killFollowers kills the followers
 function killFollowers {
-  if [ $N -eq 0 ]; then
+  if [ $NSTART -eq 0 ]; then
     return
   fi
-  for i in `jot ${N} 1`
+  for i in `jot ${NSTART} 1`
   do
     killFollower $i
   done
@@ -98,7 +102,7 @@ function passFail() {
 
 function checkLogs {
   cd ${TMP_PATH}
-  for i in `jot ${N} 1`
+  for i in `jot ${NSTART} 1`
   do
     shopt -s nullglob
     for f in $TMP_PATH/*
@@ -119,7 +123,7 @@ function checkFollowerLogs {
   cd $TMP_PATH
   cd "../tmp-follower-1"
   FOLLOWER1_PATH=$(pwd)
-  for i in `jot ${N} 1`
+  for i in `jot ${NSTART} 1`
   do
     shopt -s nullglob
     for f in $FOLLOWER1_PATH/*

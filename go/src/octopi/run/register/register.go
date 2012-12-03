@@ -22,13 +22,13 @@ func leaderHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
 	// need to ensure that only one connection access at a time
-	//	select {
-	//		case <-singleton:
-	leaderChange(ws)
-	//			singleton<-1
-	//		default:
-	// return directly if unavailable
-	//	}
+	select {
+		case <-singleton:
+			leaderChange(ws)
+			singleton<-1
+		default:
+			//return directly if unavailable
+	}
 }
 
 func leaderChange(ws *websocket.Conn) {
@@ -98,11 +98,13 @@ func redirectHandler(ws *websocket.Conn) {
 
 	if register.NoLeader() {
 		redirect.Status = protocol.StatusNotReady
+		log.Info("We have no established leader now!")
 	} else {
 		redirect.Status = protocol.StatusRedirect
 		redirect.Payload = []byte(register.Leader())
 	}
 
+	log.Info("Redirect sending payload: %v", register.Leader())
 	// don't need to check if disconnect
 	websocket.JSON.Send(ws, redirect)
 }
