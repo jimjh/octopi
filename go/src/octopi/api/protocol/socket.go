@@ -65,7 +65,7 @@ func (s *Socket) Send(request interface{}, attempts int, origin string) ([]byte,
 
 	for attempt := 0; attempt < attempts; attempt++ {
 
-		if s.HostPort==origin{
+		if s.HostPort == origin {
 			return nil, fmt.Errorf("Should not dial yourself!")
 		}
 

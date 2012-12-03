@@ -18,7 +18,7 @@ import (
 // goroutine should use the log at a time.
 type Log struct {
 	os.File
-	lastWritten	[]byte
+	lastWritten []byte
 }
 
 // LogEntry is an entry in the log file. The file is a sequence of LogEntries.
@@ -143,6 +143,7 @@ func (log *Log) IsEOF() bool {
 // readEntry reads the next n bytes and decodes them into a log entry.
 func (log *Log) readEntry(n uint32) (*LogEntry, error) {
 
+	debug.Info("Making slice of size n=%v", n)
 	buf := make([]byte, n)
 	total := uint32(0)
 

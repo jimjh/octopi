@@ -134,7 +134,6 @@ func (b *Broker) BecomeLeader() error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-
 	for {
 
 		var err error
@@ -168,8 +167,7 @@ func (b *Broker) register() error {
 	log.Info("In register()")
 	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
 	payload, err := b.leader.Send(follow, math.MaxInt32, b.Origin())
-	tmp := math.MaxInt32
-	tmp = tmp
+
 	if nil != err {
 		return err
 	}

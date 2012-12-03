@@ -19,19 +19,19 @@ const (
 )
 
 type Register struct {
-	leader string
-	insync map[string]bool
+	leader      string
+	insync      map[string]bool
 	seenBrokers map[string]bool
-	lock   sync.Mutex
-	singleton chan int
+	lock        sync.Mutex
+	singleton   chan int
 }
 
 // NewRegister returns a new Register object
 func NewRegister() *Register {
 	reg := &Register{
-		insync: make(map[string]bool),
+		insync:      make(map[string]bool),
 		seenBrokers: make(map[string]bool),
-		singleton: make(chan int, 1),
+		singleton:   make(chan int, 1),
 	}
 
 	reg.singleton <- 1
@@ -69,7 +69,7 @@ func (r *Register) LeaderDisconnect() {
 
 	r.lock.Unlock()
 
-	if len(tmpSet)==0{
+	if len(tmpSet) == 0 {
 		r.lock.Lock()
 		log.Warn("Set of followers is 0! Notify all seen brokers!!")
 		for hp, _ := range r.seenBrokers {
@@ -89,15 +89,15 @@ func (r *Register) LeaderDisconnect() {
 // every interval until a leader is connected
 func (r *Register) CheckNewLeader() {
 	select {
-		case <-r.singleton:
-			for r.leader == EMPTY {
-				r.LeaderDisconnect()
-				time.Sleep(LEADERWAIT * time.Millisecond)
-				log.Info("CheckNewLeader leader is ", r.leader)
-			}
-			r.singleton <- 1
-		default:
-			// return if an instance already running
+	case <-r.singleton:
+		for r.leader == EMPTY {
+			r.LeaderDisconnect()
+			time.Sleep(LEADERWAIT * time.Millisecond)
+			log.Info("CheckNewLeader leader is ", r.leader)
+		}
+		r.singleton <- 1
+	default:
+		// return if an instance already running
 	}
 	log.Info("Returning from CheckNewLeader")
 }

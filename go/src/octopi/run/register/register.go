@@ -23,11 +23,11 @@ func leaderHandler(ws *websocket.Conn) {
 	defer ws.Close()
 	// need to ensure that only one connection access at a time
 	select {
-		case <-singleton:
-			leaderChange(ws)
-			singleton<-1
-		default:
-			//return directly if unavailable
+	case <-singleton:
+		leaderChange(ws)
+		singleton <- 1
+	default:
+		//return directly if unavailable
 	}
 }
 
