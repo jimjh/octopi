@@ -140,6 +140,6 @@ func (b *Broker) removeFollower(follower *Follower) {
 
 	follower.quit <- nil
 
-	log.Info("Removed follower %p from follower set.", follower)
+	log.Info("Removed follower %v from follower set.", follower.hostport)
 
 }
