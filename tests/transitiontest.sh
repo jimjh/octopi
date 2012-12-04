@@ -114,12 +114,94 @@ function testRandomTransition {
 	passFail $?
 	killRegister
 	killFollowers
-	#clearLogs
+	clearLogs
+}
+
+function testRandomTransition2 {
+	echo "Starting testRandomTransition2..."
+        TESTS_TOTAL=$((TESTS_TOTAL+1))
+        NSTART=3
+        N=3
+        M=10
+        startRegister
+        startLeader
+        sleep 2
+        startFollowers
+        sleep 3
+        killLeader
+        sleep 2
+        for i in `jot ${M} 1`
+        do
+                ./stupidproducer -id="Producer1" -cnt="33" &>/dev/null &
+		./stupidproducer -id="Producer2" -cnt="33" &>/dev/null &
+		./stupidproducer -id="Producer3" -cnt="33" &>/dev/null &
+                randNum=$(((RANDOM % $NSTART)+1))
+                if [ $N -gt 1 ]
+                then
+                        killOrStart $randNum
+                else
+                        startFollower $randNum
+                fi
+                sleep 8
+        done
+
+        for i in `jot ${NSTART} 1`
+        do
+                startFollower $i
+        done
+        sleep 30
+        checkFollowerLogs
+        passFail $?
+        killRegister
+        killFollowers
+	clearLogs
+}
+
+function testRandomTransition3 {
+        echo "Starting testRandomTransition3..."
+        TESTS_TOTAL=$((TESTS_TOTAL+1))
+        NSTART=3
+        N=3
+        M=10
+        startRegister
+        startLeader
+        sleep 2
+        startFollowers
+        sleep 3
+        killLeader
+        sleep 2
+        for i in `jot ${M} 1`
+        do
+                ./stupidproducer -id="Producer1" -cnt="33" -topic="topic1" &>/dev/null &
+                ./stupidproducer -id="Producer2" -cnt="33" -topic="topic2" &>/dev/null &
+                ./stupidproducer -id="Producer3" -cnt="33" -topic="topic3" &>/dev/null &
+                randNum=$(((RANDOM % $NSTART)+1))
+                if [ $N -gt 1 ]
+                then
+                        killOrStart $randNum
+                else
+                        startFollower $randNum
+                fi
+                sleep 8
+        done
+
+        for i in `jot ${NSTART} 1`
+        do
+                startFollower $i
+        done
+        sleep 30
+        checkFollowerLogs
+        passFail $?
+        killRegister
+        killFollowers
+	clearLogs
 }
 
 clearLogs
 #testSimpleTransition
 #testTransitionAdd
-testRandomTransition
+#testRandomTransition
+#testRandomTransition2
+testRandomTransition3
 
 echo "Passed ${PASS_COUNT}/${TESTS_TOTAL} Tests"

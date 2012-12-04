@@ -247,9 +247,10 @@ func (b *Broker) catchUp() error {
 }
 
 func (b *Broker) failSafeCatchUp() {
-	err := b.catchUp()
-	if nil != err {
-		log.Warn("Changing leader %s", err.Error())
-		b.ChangeLeader()
-	}
+//	err := b.catchUp()
+//	if nil != err {
+//		log.Warn("Changing leader %s", err.Error())
+//		b.ChangeLeader()
+//	}
+	b.catchUp()
 }
