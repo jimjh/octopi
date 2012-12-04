@@ -1,8 +1,7 @@
 ## Consumer
-- Restart from offsets (file)
-- Receive special characters
-- Unit Tests
 - Implement redirect
+- Unit Tests
+- Receive special characters
 
 ## Producer
 - Unit Tests
@@ -16,8 +15,6 @@
 - Implement timer flush
 
 ## Net
-+ write generic function in go that opens connections and follows redirects
-+ write generic function that deals with network failures
 - check ACK sequence numbers
 
 - documentation

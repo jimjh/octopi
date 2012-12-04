@@ -32,7 +32,6 @@ define(['./util', './config', './protocol'],
   //      c.subscribe('topic', function() { /* ... */ });
   //
   // If a subscription already exists for the given topic, it will be ignored.
-  //} TODO: how to let application know if subscription failed?
   Consumer.prototype.subscribe = function(topic, callback, offset) {
 
     if (_.isEmpty(topic) || !_.isString(topic))
@@ -45,16 +44,18 @@ define(['./util', './config', './protocol'],
 
     if (topic in this.subscriptions) return; // already subscribed
 
-    var conn = this.subscriptions[topic] = new window.WebSocket(this.endpoint);
+    var conn = new window.WebSocket(this.endpoint);
+    var subscription =
+      this.subscriptions[topic] = { conn: conn, offset: offset };
 
-    conn.onmessage = handle(conn, callback);
+    conn.onmessage = handle(subscription, callback);
     conn.onopen = function() {
       // if unable to send, just close and resubscribe
       if (!conn.send(protocol.subscription(topic, offset))) return conn.close();
       util.warn('Retrying connection to broker ...');
       // otherwise, wait for ACK
       var wait = _.random(config.max_retry_interval);
-      conn.ack = window.setTimeout(conn.onopen, wait);
+      subscription.ack = window.setTimeout(conn.onopen, wait);
     };
 
     conn.onclose = _.bind(onclose, this, conn, topic, callback);
@@ -69,7 +70,7 @@ define(['./util', './config', './protocol'],
       throw new TypeError('Invalid topic. Should be a non-empty string.');
     if (!(topic in this.subscriptions)) return;
 
-    var conn = this.subscriptions[topic];
+    var conn = this.subscriptions[topic].conn;
     delete this.subscriptions[topic];
     conn.close();
 
@@ -82,38 +83,37 @@ define(['./util', './config', './protocol'],
     var that = this;
     var wait = _.random(protocol.MAX_RETRY_INTERVAL);
 
-    // TODO: use last offset
-    // TODO: should we give up after a certain number of retries?
     window.setTimeout(function() {
+      var next = that.subscriptions[topic].offset;
       delete that.subscriptions[topic];
-      that.subscribe(topic, callback);
+      that.subscribe(topic, callback, next);
     }, wait);
 
   };
 
   // Returns a function that handles incoming websocket messages and passes
   // them to the user-supplied callback.
-  var handle = function(conn, callback) {
+  var handle = function(subscription, callback) {
 
     var onack = function(event) {
       util.log('Ack received from broker.');
       var ack = protocol.ack(event.data);
       if (ack.Status !== protocol.SUCCESS) return;
-      window.clearTimeout(conn.ack); // stop retrying
-      delete conn.ack;
+      window.clearTimeout(subscription.ack); // stop retrying
+      delete subscription.ack;
     };
 
     var ondata = function(event) {
       var message = protocol.message(event.data);
       var checksum = protocol.checksum(message);
       // TODO: fix checksum issues for special characters
+      subscription.offset += message.Length + 40;
       if (true || checksum == message.Checksum) return callback(message.Payload);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
-      // TODO: checksum error
     };
 
     return function(event) {
-      if (!_.isUndefined(conn.ack)) return onack(event);
+      if (!_.isUndefined(subscription.ack)) return onack(event);
       return ondata(event);
     };
 
@@ -123,7 +123,7 @@ define(['./util', './config', './protocol'],
   var onclose = function(conn, topic, cb) {
 
     // do nothing if intentional close, or different connection
-    if (!(topic in this.subscriptions && this.subscriptions[topic] === conn))
+    if (!(topic in this.subscriptions && this.subscriptions[topic].conn === conn))
       return;
 
     // back off and reconnect

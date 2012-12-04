@@ -9,7 +9,7 @@
 /*jshint strict:true unused:true*/
 /*global base64 crc32*/
 
-define(function() {
+define(['./util'], function(util) {
 
   'use strict';
 
@@ -35,6 +35,7 @@ define(function() {
     message: function(string) {
       var obj = JSON.parse(string);
       obj.Payload = base64.decode(obj.Payload);
+      obj.Length = obj.Payload.length;
       return obj;
     },
 

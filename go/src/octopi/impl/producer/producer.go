@@ -72,7 +72,7 @@ func (p *Producer) Send(topic string, payload []byte) error {
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	_, err := p.socket.Send(request, MAX_RETRIES)
+	_, err := p.socket.Send(request, MAX_RETRIES, origin())
 
 	if nil != err {
 		return &ProduceError{seqnum}
