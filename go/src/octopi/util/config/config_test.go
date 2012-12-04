@@ -17,7 +17,7 @@ func TestReadJSON(tester *testing.T) {
 
 	t := test.New(tester)
 
-	dir := os.TempDir()
+	dir := filepath.Dir(os.TempDir())
 	config := new(Config)
 	config.Options = map[string]string{
 		"key":   "value",
@@ -36,8 +36,8 @@ func TestReadJSON(tester *testing.T) {
 	actual, err := Init(name)
 	t.AssertNil(err, "config.Init")
 
-	matcher := new(configMatcher)
-	t.AssertEqual(matcher, config.Options, actual.Options)
+	t.AssertEqual(new(configMatcher), config.Options, actual.Options)
+	t.AssertEqual(new(test.StringMatcher), dir, actual.Base)
 
 }
 
