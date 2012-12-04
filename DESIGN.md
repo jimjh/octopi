@@ -1,6 +1,7 @@
 # Architecture
 
 _TODO: transfer stuff from proposal over here_
+_TODO: include assumptions about go closing the connection _
 
 Producers send messages to brokers, which maintains a log for each topic. Messages from the topic logs are streamed to consumers, and a consumer may specify an optional starting offset during subscription.
 
@@ -32,7 +33,7 @@ The following failure possibilities are taken into consideration:
 	- else, the duplicate will be detected using the sequence numbers
 3.  leader fails after replying producer
 	- producer will not retry, but all is well
-	
+
 ## Leadership Transition
 The register is responsible to managing overall broker membership and leadership appointments. It maintains open connections with all brokers, and will try to reestablish these (a few times) if they are broken.
 
@@ -52,5 +53,5 @@ Note:
 - when brokers send accepts to the register, it also contains the largest offsets for each topic that they have
 	- register must tell new leader
 	- new leader uses this to catchup with every broker and produce the latest logs possible
-	
+
 **Edge Case**: should the network be partitioned such that the leader (and a few followers) are cut off from the register and the rest of the brokers, there is a potential that two contending groups will form. However, since producers/consumers always discover the leader via the register, the register's decision wins.

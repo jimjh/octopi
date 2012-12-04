@@ -46,9 +46,9 @@ define(['./util', './config', './protocol'],
 
     var conn = new window.WebSocket(this.endpoint);
     var subscription =
-      this.subscriptions[topic] = { conn: conn, offset: offset };
+      this.subscriptions[topic] = { topic: topic, conn: conn, offset: offset };
 
-    conn.onmessage = handle(subscription, callback);
+    conn.onmessage = handle(this, subscription, callback);
     conn.onopen = function() {
       // if unable to send, just close and resubscribe
       if (!conn.send(protocol.subscription(topic, offset))) return conn.close();
@@ -93,20 +93,35 @@ define(['./util', './config', './protocol'],
 
   // Returns a function that handles incoming websocket messages and passes
   // them to the user-supplied callback.
-  var handle = function(subscription, callback) {
+  var handle = function(consumer, subscription, callback) {
+
+    var clear = function() {
+      window.clearTimeout(subscription.ack);
+      delete subscription.ack;
+    };
 
     var onack = function(event) {
-      util.log('Ack received from broker.');
+
       var ack = protocol.ack(event.data);
-      if (ack.Status !== protocol.SUCCESS) return;
-      window.clearTimeout(subscription.ack); // stop retrying
-      delete subscription.ack;
+      switch(ack.Status) {
+        case protocol.REDIRECT:
+          clear();
+          consumer.endpoint = "ws://" + ack.Payload + "/" + protocol.PATH;
+          util.log('redirected to ' + consumer.endpoint);
+          consumer.unsubscribe(subscription.topic);
+          consumer.subscribe(subscription.topic, callback, subscription.offset);
+          break;
+        case protocol.SUCCESS:
+          clear();
+          break;
+      }
+
     };
 
     var ondata = function(event) {
       var message = protocol.message(event.data);
       var checksum = protocol.checksum(message);
-      // TODO: fix checksum issues for special characters
+      // TODO: fix checksum and length issues for special characters
       subscription.offset += message.Length + 40;
       if (true || checksum == message.Checksum) return callback(message.Payload);
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
