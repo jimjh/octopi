@@ -107,17 +107,6 @@ func redirectHandler(ws *websocket.Conn) {
 	websocket.JSON.Send(ws, redirect)
 }
 
-// consumerHandler handles connections from new consumers
-// joining the system. Redirects consumer to leader.
-func consumerHandler(ws *websocket.Conn) {
-
-	defer ws.Close()
-
-	redirect := &protocol.Ack{protocol.StatusRedirect, []byte(register.Leader())}
-	websocket.JSON.Send(ws, redirect)
-
-}
-
 func main() {
 
 	log.SetVerbose(log.DEBUG)
@@ -149,7 +138,7 @@ func listenHttp(port int) {
 	http.Handle("/"+protocol.LEADER, websocket.Handler(leaderHandler))
 	http.Handle("/"+protocol.FOLLOW, websocket.Handler(redirectHandler))
 	http.Handle("/"+protocol.PUBLISH, websocket.Handler(redirectHandler))
-	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
+	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(redirectHandler))
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 

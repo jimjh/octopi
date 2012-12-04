@@ -16,10 +16,11 @@ import (
 
 // Producers publish messages to brokers.
 type Producer struct {
-	socket *protocol.Socket // protocol socket
-	seqnum int64            // sequence number of messages
-	lock   sync.Mutex       // lock for producer state
-	id     string           // producer ID
+	socket   *protocol.Socket // protocol socket
+	register string           // hostport of register
+	seqnum   int64            // sequence number of messages
+	lock     sync.Mutex       // lock for producer state
+	id       string           // producer ID
 }
 
 // Max number of retries.
@@ -56,7 +57,7 @@ func New(hostport string, id *string) *Producer {
 		Origin:   origin(),
 	}
 
-	return &Producer{id: *id, socket: socket}
+	return &Producer{id: *id, socket: socket, register: hostport}
 
 }
 
@@ -72,13 +73,19 @@ func (p *Producer) Send(topic string, payload []byte) error {
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	_, err := p.socket.Send(request, MAX_RETRIES, origin())
 
-	if nil != err {
-		return &ProduceError{seqnum}
+	for {
+
+		if _, err := p.socket.Send(request, MAX_RETRIES, origin()); nil != err {
+			p.socket.Reset(p.register)
+			continue
+		}
+
+		log.Debug("Acknowledgement received.")
+		return nil
+
 	}
 
-	log.Debug("Acknowledgement received.")
 	return nil
 
 }
