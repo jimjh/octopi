@@ -3,8 +3,6 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	"io"
-	"net"
 	"octopi/api/protocol"
 	"octopi/util/log"
 )
@@ -20,7 +18,7 @@ type Follower struct {
 }
 
 // SyncFollower streams updates to a follower through the given connection.
-// Once the follower has fully caught it, add it to the follower set.
+// Once the follower has fully caught up, add it to the follower set.
 func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport protocol.HostPort) error {
 
 	follower := &Follower{
@@ -30,33 +28,52 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 		quit:     make(chan interface{}, 1),
 	}
 
-	b.lock.Lock()
-	ack := new(protocol.FollowACK)
-	if nil != b.checkpoints {
-		ack.Truncate = make(Offsets)
-		for topic, checkpoint := range b.checkpoints {
-			if tails[topic] > checkpoint {
-				ack.Truncate[topic] = checkpoint
-				tails[topic] = checkpoint
-			}
-		}
+	if err := b.ackFollower(follower); nil != err {
+		return err
 	}
 
-	inner, _ := json.Marshal(ack)
-	websocket.JSON.Send(conn, &protocol.Ack{protocol.StatusSuccess, inner})
-	b.lock.Unlock()
-
-	log.Debug("Begin synchronizing follower.")
+	log.Debug("Begin synchronizing follower %v.", follower.hostport)
 	for !follower.caughtUp(b) {
 		if err := follower.catchUp(b); nil != err {
 			return err
 		}
 	}
 
-	log.Info("Follower has fully caught up.")
+	log.Info("Follower %v has fully caught up.", follower.hostport)
 
 	<-follower.quit
 	return nil
+
+}
+
+// ackFollower sends an acknowledgement to the follower.
+func (b *Broker) ackFollower(f *Follower) error {
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	ack := new(protocol.Ack)
+	if b.role != LEADER || f.conn.RemoteAddr().String() == b.Origin() {
+		log.Warn("Denying follow requests from %s.", f.conn.RemoteAddr())
+		ack.Status = protocol.StatusFailure
+	} else {
+
+		inner := new(protocol.FollowACK)
+		inner.Truncate = make(Offsets)
+		for topic, checkpoint := range b.checkpoints {
+			log.Info("Checkpoint is %v", checkpoint)
+			if f.tails[topic] > checkpoint {
+				inner.Truncate[topic] = checkpoint
+				f.tails[topic] = checkpoint
+			}
+		}
+
+		ack.Status = protocol.StatusSuccess
+		ack.Payload, _ = json.Marshal(inner)
+
+	}
+
+	return websocket.JSON.Send(f.conn, ack)
 
 }
 
@@ -64,24 +81,32 @@ func (b *Broker) SyncFollower(conn *websocket.Conn, tails Offsets, hostport prot
 // broker's follower set.
 func (f *Follower) caughtUp(broker *Broker) bool {
 
-	log.Info("Catching up with %v", f.hostport)
 	broker.lock.Lock()
 	defer broker.lock.Unlock()
 
-	log.Info("Obtained lock for %v", f.hostport)
+	//log.Info("Obtained lock for %v", f.hostport)
 
 	expected := broker.tails()
 	for topic, offset := range expected {
+		// FIXME
+		//if offset == f.tails[topic]+1 {
+		//	log.Panic("offset: %d, tail: %d", offset, f.tails[topic])
+		//}
 		if offset != f.tails[topic] {
+			log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
 			return false
+		}
+	}
+
+	// check if follower already in set. if so, delete prev entry.
+	for follower, _ := range broker.followers {
+		if f.hostport == follower.hostport {
+			delete(broker.followers, follower)
 		}
 	}
 
 	// add to set of followers
 	broker.followers[f] = true
-	for follower, _ := range broker.followers {
-		log.Info("Followers include: %v", follower.hostport)
-	}
 
 	// create struct to communicate with register
 	var addFollow protocol.InsyncChange
@@ -90,31 +115,32 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.
-	err := websocket.JSON.Send(broker.regConn, addFollow)
-	checkError(err)
+	websocket.JSON.Send(broker.regConn, addFollow)
+	// FIXME: exiting is not the correct thing to do
 
 	return true
 
 }
 
-// catchUp tries to catch up the follower's log files with the leader's.
+// catchUp tries to catch up the follower's log files with the leader's. If the
+// follower dies while catching up, the sync will be aborted.
 func (f *Follower) catchUp(broker *Broker) error {
 
-	// TODO: what if follower dies while catching up?
+	logs := make([]string, len(broker.logs))
 
 	broker.lock.Lock()
-	logs := broker.logs
+	for topic, _ := range broker.logs {
+		logs = append(logs, topic)
+	}
 	broker.lock.Unlock()
 
-	var abort error
-
-	for topic, _ := range logs {
+	for _, topic := range logs {
 		if err := f.catchUpLog(broker, topic); nil != err {
-			abort = err
+			return err
 		}
 	}
 
-	return abort
+	return nil
 
 }
 
@@ -125,25 +151,30 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 	file, err := OpenLog(broker.config, topic, f.tails[topic])
 	if nil != err {
 		log.Warn("Could not open log file for topic: %s.", topic)
-		return nil
+		return err
 	}
 
 	defer file.Close()
+	var total uint32 = uint32(f.tails[topic])
+	log.Debug("Started with %d.", total)
 
 	for {
 
 		// read next entry
 		entry, err := file.ReadNext()
 		if nil != err {
-			return nil
+			return nil // EOF
 		}
 
 		// send to follower
 		sync := &protocol.Sync{topic, entry.Message, entry.RequestId}
-		log.Debug("Wrote %v on topic %v to %v", entry.Message.ID, topic, f.hostport)
 		if err = websocket.JSON.Send(f.conn, sync); nil != err {
 			return err
 		}
+
+		total += entry.length() + 4
+		log.Debug("Send %v.", entry.RequestId)
+		log.Debug("Sent %d to %s.", total, f.conn.RemoteAddr())
 
 		// wait for ack
 		var ack protocol.SyncACK
@@ -152,6 +183,7 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 		}
 
 		f.tails[topic] = ack.Offset
+		log.Debug("%s is at %d.", f.conn.RemoteAddr(), ack.Offset)
 
 	}
 
@@ -161,9 +193,6 @@ func (f *Follower) catchUpLog(broker *Broker, topic string) error {
 
 // catchUp tries to bring _this_ broker up to date with its leader.
 func (b *Broker) catchUp() error {
-
-	// TODO: what if leader dies while follower is catching up?
-	// FIXME: check for dups in the log
 
 	write := func(request *protocol.Sync) (int64, error) {
 
@@ -181,6 +210,7 @@ func (b *Broker) catchUp() error {
 		}
 
 		stat, err := file.Stat()
+		log.Debug("File size on %s is %d.", b.Origin(), stat.Size())
 		if nil != err {
 			return 0, err
 		}
@@ -192,33 +222,35 @@ func (b *Broker) catchUp() error {
 	for {
 
 		var request protocol.Sync
-		err := b.leader.Receive(&request)
-		log.Debug("Received %v.", request)
-
-		switch err {
-		case nil:
-			offset, err := write(&request)
-			if nil != err {
-				log.Warn("Unable to open log file for %s.", request.Topic)
-			}
-			ack := &protocol.SyncACK{request.Topic, offset}
-			if nil != websocket.JSON.Send(b.leader.Conn, ack) {
-				log.Warn("Unable to ack leader.")
-			}
-			b.cond.Broadcast()
-		case io.EOF:
-			log.Error("Connection with leader lost.")
+		if err := b.leader.Receive(&request); nil != err {
+			log.Warn("Unable to receive from leader.")
 			return err
-		default:
-			e, ok := err.(net.Error)
-			if ok && !e.Temporary() {
-				return err
-			}
-			log.Error("Ignoring invalid message from leader:", err)
 		}
+
+		offset, err := write(&request)
+		if nil != err {
+			log.Warn("Unable to open log file for %s.", request.Topic)
+			continue
+		}
+
+		ack := &protocol.SyncACK{request.Topic, offset}
+		if err := b.leader.Acknowledge(ack); nil != err {
+			log.Warn("Unable to ack leader: %s", err.Error())
+		}
+
+		b.cond.Broadcast()
 
 	}
 
 	return nil
 
+}
+
+func (b *Broker) failSafeCatchUp() {
+//	err := b.catchUp()
+//	if nil != err {
+//		log.Warn("Changing leader %s", err.Error())
+//		b.ChangeLeader()
+//	}
+	b.catchUp()
 }

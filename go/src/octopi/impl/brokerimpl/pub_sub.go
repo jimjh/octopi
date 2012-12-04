@@ -112,7 +112,6 @@ func (b *Broker) replicate(topic string, entry *LogEntry) error {
 			// lost
 			b.removeFollower(follower)
 		}
-		log.Info("Received ACK from %v", follower.hostport)
 	}
 
 	return nil
@@ -136,11 +135,11 @@ func (b *Broker) removeFollower(follower *Follower) {
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.
-	err := websocket.JSON.Send(b.regConn, removeFollow)
-	checkError(err)
+	websocket.JSON.Send(b.regConn, removeFollow)
+	// checkError(err) // FIXME: exiting is not the correct thing to do
 
 	follower.quit <- nil
 
-	log.Info("Removed follower %p from follower set.", follower)
+	log.Info("Removed follower %v from follower set.", follower.hostport)
 
 }

@@ -9,6 +9,7 @@ import (
 	"hash/crc32"
 	"io"
 	"octopi/api/protocol"
+	debug "octopi/util/log"
 	"os"
 	"path/filepath"
 )
@@ -17,6 +18,7 @@ import (
 // goroutine should use the log at a time.
 type Log struct {
 	os.File
+	lastWritten []byte
 }
 
 // LogEntry is an entry in the log file. The file is a sequence of LogEntries.
@@ -50,7 +52,7 @@ func OpenLog(config *Config, topic string, offset int64) (*Log, error) {
 		return nil, err
 	}
 
-	return &Log{*file}, nil
+	return &Log{*file, []byte("")}, nil
 
 }
 
@@ -91,6 +93,10 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 	checkpoint, _ := log.Seek(0, os.SEEK_CUR)
 	bail := func() { log.Seek(checkpoint, os.SEEK_SET) }
 
+	if string(entry.RequestId) == string(log.lastWritten) {
+		return nil
+	}
+
 	if err := log.writeLength(entry); nil != err {
 		bail()
 		return err
@@ -100,6 +106,9 @@ func (log *Log) WriteNext(entry *LogEntry) error {
 		bail()
 		return err
 	}
+
+	log.lastWritten = entry.RequestId
+	debug.Info("wrote request %v.", entry.RequestId)
 
 	return nil
 
@@ -134,6 +143,7 @@ func (log *Log) IsEOF() bool {
 // readEntry reads the next n bytes and decodes them into a log entry.
 func (log *Log) readEntry(n uint32) (*LogEntry, error) {
 
+	debug.Info("Making slice of size n=%v", n)
 	buf := make([]byte, n)
 	total := uint32(0)
 
@@ -205,7 +215,8 @@ func (entry *LogEntry) decode(buffer []byte) error {
 func (entry *LogEntry) encode() ([]byte, error) {
 
 	n := entry.length()
-	writer := new(bytes.Buffer)
+	buffer := make([]byte, 0, n)
+	writer := bytes.NewBuffer(buffer)
 
 	// write checksum
 	err := binary.Write(writer, binary.LittleEndian, entry.Checksum)

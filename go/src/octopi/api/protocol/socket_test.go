@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const fakeOrigin = "localhost:12345"
+
 func count(requestCount *int) func(*websocket.Conn) {
 	return func(conn *websocket.Conn) {
 		*requestCount++
@@ -39,7 +41,7 @@ func TestRetries(tester *testing.T) {
 		Origin:   "localhost:12345",
 	}
 	attempts := 5
-	_, err = socket.Send(nil, attempts)
+	_, err = socket.Send(nil, attempts, fakeOrigin)
 	t.AssertNotNil(err, "socket.Send")
 
 	listener.Close()
@@ -95,7 +97,7 @@ func TestRedirects(tester *testing.T) {
 		Path:     "",
 		Origin:   "localhost:12345",
 	}
-	_, err = socket.Send(nil, 3)
+	_, err = socket.Send(nil, 3, fakeOrigin)
 	t.AssertNil(err, "socket.Send")
 
 	listener1.Close()
@@ -134,7 +136,7 @@ func TestFailure(tester *testing.T) {
 		Path:     "",
 		Origin:   "localhost:12345",
 	}
-	_, err = socket.Send(nil, 3)
+	_, err = socket.Send(nil, 3, fakeOrigin)
 	t.AssertNotNil(err, "socket.Send")
 
 	listener.Close()

@@ -28,8 +28,6 @@ func producer(conn *websocket.Conn) {
 			continue
 		}
 
-		log.Info("Received produce request from %v.", conn.RemoteAddr())
-
 		ack := new(protocol.Ack)
 		if err := broker.Publish(request.Topic, request.ID, &request.Message); nil != err {
 			log.Error(err.Error())

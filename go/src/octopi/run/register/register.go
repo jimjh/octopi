@@ -10,27 +10,33 @@ import (
 	"octopi/util/config"
 	"octopi/util/log"
 	"strconv"
-	"sync"
 )
 
 var register *regimpl.Register
-var handlerLock sync.Mutex
+var singleton chan int
 
 // leaderHandler handles brokers that are trying to initiate
 // leader connections with the register. Blocks connection
 // if there is already a leader
 func leaderHandler(ws *websocket.Conn) {
 
+	defer ws.Close()
+	// need to ensure that only one connection access at a time
+	select {
+	case <-singleton:
+		leaderChange(ws)
+		singleton <- 1
+	default:
+		//return directly if unavailable
+	}
+}
+
+func leaderChange(ws *websocket.Conn) {
+
 	var leaderhp protocol.HostPort
-        err := websocket.JSON.Receive(ws, &leaderhp)
+	err := websocket.JSON.Receive(ws, &leaderhp)
 
 	log.Info("Received leader request from %v", leaderhp)
-
-	// need to ensure that only one connection access at a time
-	handlerLock.Lock()
-	defer handlerLock.Unlock()
-
-	defer ws.Close()
 
 	// close the connection if there is already a leader
 	if !register.NoLeader() {
@@ -39,7 +45,6 @@ func leaderHandler(ws *websocket.Conn) {
 
 	if err == io.EOF {
 		register.SetLeader(regimpl.EMPTY)
-		register.LeaderDisconnect()
 		log.Info("Leader %v has disconnected", leaderhp)
 		// XXX: is there a more elegant way? Seems a bit hacky
 		go register.CheckNewLeader()
@@ -58,7 +63,6 @@ func leaderHandler(ws *websocket.Conn) {
 		if err == io.EOF {
 			log.Info("Leader %v has disconnected", leaderhp)
 			register.SetLeader(regimpl.EMPTY)
-			register.LeaderDisconnect()
 			// XXX: seems a bit hacky...
 			go register.CheckNewLeader()
 			return
@@ -92,23 +96,26 @@ func redirectHandler(ws *websocket.Conn) {
 
 	if register.NoLeader() {
 		redirect.Status = protocol.StatusNotReady
+		log.Info("We have no established leader now!")
 	} else {
 		redirect.Status = protocol.StatusRedirect
 		redirect.Payload = []byte(register.Leader())
 	}
 
+	log.Info("Redirect sending payload: %v", register.Leader())
 	// don't need to check if disconnect
 	websocket.JSON.Send(ws, redirect)
 }
 
 // consumerHandler handles connections from new consumers
-// joining the system. Sends the consumer a list of
-// in-sync followers
+// joining the system. Redirects consumer to leader.
 func consumerHandler(ws *websocket.Conn) {
 
 	defer ws.Close()
-	// don't need to check if disconnect
-	websocket.JSON.Send(ws, register.GetInsyncSet())
+
+	redirect := &protocol.Ack{protocol.StatusRedirect, []byte(register.Leader())}
+	websocket.JSON.Send(ws, redirect)
+
 }
 
 func main() {
@@ -132,6 +139,9 @@ func main() {
 
 	register = regimpl.NewRegister()
 
+	singleton = make(chan int, 1)
+	singleton <- 1
+
 	listenHttp(port)
 }
 
@@ -139,7 +149,7 @@ func listenHttp(port int) {
 	http.Handle("/"+protocol.LEADER, websocket.Handler(leaderHandler))
 	http.Handle("/"+protocol.FOLLOW, websocket.Handler(redirectHandler))
 	http.Handle("/"+protocol.PUBLISH, websocket.Handler(redirectHandler))
-	http.Handle("/"+protocol.CONSUMER, websocket.Handler(consumerHandler))
+	http.Handle("/"+protocol.SUBSCRIBE, websocket.Handler(consumerHandler))
 	http.ListenAndServe(":"+strconv.Itoa(port), nil)
 }
 

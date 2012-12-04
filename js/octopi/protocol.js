@@ -9,7 +9,7 @@
 /*jshint strict:true unused:true*/
 /*global base64 crc32*/
 
-define(function() {
+define(['./util'], function(util) {
 
   'use strict';
 
@@ -18,8 +18,14 @@ define(function() {
     // Endpoint for subscription requests.
     PATH: 'subscribe',
 
-    // Status codes
+    // StatusSuccess
     SUCCESS: 200,
+
+    // StatusRedirect
+    REDIRECT: 320,
+
+    // Maxmium number of milliseconds to wait between retries.
+    MAX_RETRY_INTERVAL: 2000,
 
     // Creates a new subscription request for the given topic.
     subscription: function(topic, offset) {
@@ -28,13 +34,16 @@ define(function() {
 
     // Parses received ACK into a javascript object.
     ack: function(string) {
-      return JSON.parse(string);
+      var obj = JSON.parse(string);
+      obj.Payload = base64.decode(obj.Payload);
+      return obj;
     },
 
     // Parses received message into a javascript object.
     message: function(string) {
       var obj = JSON.parse(string);
       obj.Payload = base64.decode(obj.Payload);
+      obj.Length = obj.Payload.length;
       return obj;
     },
 
