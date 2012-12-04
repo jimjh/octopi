@@ -9,6 +9,4 @@ install:
 
 .PHONY: test
 test:
-	for package in $(PACKAGES); do \
-		go test -v $$package; \
-	done
+	for package in $(PACKAGES); do go test -v $$package; done
