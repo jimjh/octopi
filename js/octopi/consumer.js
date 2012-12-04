@@ -22,6 +22,7 @@ define(['./util', './config', './protocol'],
   var Consumer = function(host) {
     if (_.isEmpty(host) || !_.isString(host))
       throw new TypeError('Invalid host. It should look like example.com:123.');
+    this.register = host;
     this.endpoint = 'ws://' + host + '/' + protocol.PATH;
     this.subscriptions = {};
   };
@@ -81,7 +82,7 @@ define(['./util', './config', './protocol'],
   Consumer.prototype.resubscribe = function(topic, callback) {
 
     var that = this;
-    var wait = _.random(protocol.MAX_RETRY_INTERVAL);
+    var wait = _.random(config.max_retry_interval);
 
     window.setTimeout(function() {
       var next = that.subscriptions[topic].offset;
@@ -142,6 +143,7 @@ define(['./util', './config', './protocol'],
       return;
 
     // back off and reconnect
+    this.endpoint = "ws://" + this.register + "/" + protocol.PATH;
     this.resubscribe(topic, cb);
 
   };

@@ -24,9 +24,6 @@ define(['./util'], function(util) {
     // StatusRedirect
     REDIRECT: 320,
 
-    // Maxmium number of milliseconds to wait between retries.
-    MAX_RETRY_INTERVAL: 2000,
-
     // Creates a new subscription request for the given topic.
     subscription: function(topic, offset) {
       return JSON.stringify({Topic: topic, Offset: offset});
