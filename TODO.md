@@ -6,6 +6,7 @@
 - Unit Tests
 
 ## Broker
+- Unit Tests
 - test deny self follow
 - CRC32 checksum verification in broker
 - Ignore produce requests if not leader
@@ -15,5 +16,6 @@
 ## Net
 - check ACK sequence numbers
 
+## Others
 - documentation
 - demo app
