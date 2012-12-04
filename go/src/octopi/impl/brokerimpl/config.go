@@ -4,6 +4,7 @@ import (
 	"octopi/util/config"
 	"octopi/util/log"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -27,7 +28,12 @@ var logDir = os.TempDir()
 
 // LogDir returns the "log_dir" option in the configuration.
 func (c *Config) LogDir() string {
-	return c.Get("log_dir", logDir)
+	rel := filepath.Join(c.Base, c.Get("log_dir", logDir))
+	abs, err := filepath.Abs(rel)
+	if nil != err {
+		panic(err)
+	}
+	return abs
 }
 
 // Host returns the host of this broker. Defaults to os.Hostname.

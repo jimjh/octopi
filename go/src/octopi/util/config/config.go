@@ -14,11 +14,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 )
 
 // Config represents a set of configuration options.
 type Config struct {
 	Options map[string]string // key-value option pairs
+	Base    string            // dir of configuration file
 }
 
 // Init initializes a config struct from the given JSON file.
@@ -27,7 +29,7 @@ type Config struct {
 //    config := c.Init("conf.json")
 func Init(filename string) (*Config, error) {
 
-	config := &Config{make(map[string]string)}
+	config := &Config{make(map[string]string), filepath.Dir(filename)}
 	data, err := ioutil.ReadFile(filename)
 	if nil != err {
 		return nil, err

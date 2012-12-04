@@ -4,13 +4,13 @@ package brokerimpl
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"octopi/api/protocol"
 	"octopi/util/config"
 	"octopi/util/log"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -20,6 +20,7 @@ import (
 // and the others are followers.
 type Broker struct {
 	config        *Config
+	role          int                        // leader or follower
 	followers     map[*Follower]bool         // set of followers
 	subscriptions map[string]SubscriptionSet // map of topics to consumer connections
 	logs          map[string]*Log            // map of topics to logs
@@ -44,8 +45,11 @@ type Offsets map[string]int64
 // - register: host:port of registry/leader
 func New(options *config.Config) (*Broker, error) {
 
+	config := &Config{*options}
 	b := &Broker{
-		config:        &Config{*options},
+		role:          config.Role(),
+		config:        config,
+		checkpoints:   make(map[string]int64),
 		followers:     make(FollowerSet),
 		subscriptions: make(map[string]SubscriptionSet),
 		logs:          make(map[string]*Log),
@@ -55,12 +59,14 @@ func New(options *config.Config) (*Broker, error) {
 	b.initLogs()
 	b.initSocket()
 
-	if FOLLOWER == b.config.Role() {
-		return b, b.register(b.config.Register())
+	switch b.role {
+	case FOLLOWER:
+		return b, b.register()
+	case LEADER:
+		return b, b.BecomeLeader()
 	}
 
-	b.BecomeLeader()
-	return b, nil
+	return nil, errors.New("Invalid configuration options.")
 
 }
 
@@ -101,19 +107,17 @@ func (b *Broker) initLogs() {
 
 }
 
-// LeaderClose closes the connection with leader
-func (b *Broker) LeaderClose() {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.leader.Close()
-}
+// ChangeLeader closes the current leader connection and re-registers.
+func (b *Broker) ChangeLeader() error {
 
-// Leader change changes the leader connection
-func (b *Broker) LeaderChange(hostport string) {
+	b.leader.Reset(b.config.Register())
+	log.Info("Reset to be %v", b.config.Register())
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.leader.HostPort = hostport
-	b.register(hostport)
+
+	return b.register()
+
 }
 
 // BecomeLeader returns only after successfully declaring leadership with the
@@ -121,24 +125,27 @@ func (b *Broker) LeaderChange(hostport string) {
 // and checkpoints the tails of all open logs.
 func (b *Broker) BecomeLeader() error {
 
-	var err error
-	regEndpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
+	endpoint := "ws://" + b.config.Register() + "/" + protocol.LEADER
 	origin := b.Origin()
+
+	log.Debug("Resetting...")
+	b.leader.Reset(origin)
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
 	for {
-		// dial the register
-		b.regConn, err = websocket.Dial(regEndpoint, "", origin)
+
+		var err error
+		b.regConn, err = websocket.Dial(endpoint, "", origin)
 
 		if nil != err {
-			log.Warn("Error dialing %s: %s", regEndpoint, err.Error())
+			log.Warn("Error dialing %s: %s", endpoint, err.Error())
 			backoff()
 			continue
 		}
 
-		err = websocket.JSON.Send(b.regConn, b.Origin())
+		err = websocket.JSON.Send(b.regConn, origin)
 		if nil != err {
 			backoff()
 			continue
@@ -149,15 +156,18 @@ func (b *Broker) BecomeLeader() error {
 	}
 
 	b.checkpoints = b.tails()
+	b.role = LEADER
 	return nil
 
 }
 
 // register sends a follow request to the given leader.
-func (b *Broker) register(hostport string) error {
+func (b *Broker) register() error {
 
+	log.Info("In register()")
 	follow := &protocol.FollowRequest{b.tails(), protocol.HostPort(b.Origin())}
-	payload, err := b.leader.Send(follow, math.MaxInt32)
+	payload, err := b.leader.Send(follow, math.MaxInt32, b.Origin())
+
 	if nil != err {
 		return err
 	}
@@ -165,17 +175,22 @@ func (b *Broker) register(hostport string) error {
 	log.Info("Registered with leader.")
 
 	var ack protocol.FollowACK
-	err = json.Unmarshal(payload, &ack)
-	if nil != err {
+	if err := json.Unmarshal(payload, &ack); nil != err {
 		return err
 	}
 
 	for topic, checkpoint := range ack.Truncate {
-		truncateLog(b.config, topic, checkpoint)
+		if log, exists := b.logs[topic]; exists {
+			log.Close()
+			delete(b.logs, topic)
+		}
+		if err := truncateLog(b.config, topic, checkpoint); nil != err {
+			return err
+		}
 	}
 
 	// successful connection
-	go b.catchUp()
+	go b.failSafeCatchUp()
 
 	log.Info("Catching up with leader.")
 	return nil
@@ -221,13 +236,6 @@ func (b *Broker) getOrOpenLog(topic string) (*Log, error) {
 	b.logs[topic] = file
 	return file, nil
 
-}
-
-// XXX: is it appropriate to exit?
-func checkError(err error) {
-	if err != nil {
-		os.Exit(1)
-	}
 }
 
 func backoff() {

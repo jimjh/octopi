@@ -21,9 +21,6 @@ func register(ws *websocket.Conn) {
 		return
 	}
 
-	// close connection to previous leader
-	broker.LeaderClose()
-
 	var max uint32 = 0
 	var maxhp string
 
@@ -37,10 +34,15 @@ func register(ws *websocket.Conn) {
 	}
 
 	if maxhp == broker.Origin() {
-		log.Info("I have become the new leader. My hostport is: %v", broker.Origin())
+		log.Debug("I should become the new leader. I am %v", broker.Origin())
 		broker.BecomeLeader()
+		log.Debug("I am the new leader.")
 	} else {
-		broker.LeaderChange(maxhp)
+		log.Debug("%v should become the new leader.", maxhp)
+		err := broker.ChangeLeader()
+		if nil != err {
+			log.Warn("Got Error %v from ChangeLeader", err)
+		}
 	}
 
 }
