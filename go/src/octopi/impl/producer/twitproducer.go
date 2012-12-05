@@ -76,9 +76,12 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 		tweetToSend := getTweet(t)
 
-		marshalTweet, _ := json.Marshal(tweetToSend)
+		// TODO: what do we send?
+		//marshalTweet, _ := json.Marshal(tweetToSend)
 
-		err = tp.Producer.Send(TOPIC, marshalTweet)
+		//err = tp.Producer.Send(TOPIC, marshalTweet)
+
+		err = tp.Producer.Send(TOPIC, []byte(tweetToSend.Text))
 
 		if nil != err {
 			return i, err
