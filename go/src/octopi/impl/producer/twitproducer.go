@@ -83,6 +83,10 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 		//err = tp.Producer.Send(TOPIC, marshalTweet)
 
+		if len(tweetToSend.Text) == 0 {
+			i--
+			continue
+		}
 		err = tp.Producer.Send(TOPIC, []byte(tweetToSend.Text))
 
 		if nil != err {
