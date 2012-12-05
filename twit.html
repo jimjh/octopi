@@ -34,7 +34,7 @@
         }
 
         $('body').bind("onready", function() {
-          var c = new octopi.Consumer('localhost:12345');
+          c = new octopi.Consumer('localhost:12345');
           c.subscribe('tweet', function(d){ append(d); });
         });
 
