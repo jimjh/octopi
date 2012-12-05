@@ -16,12 +16,10 @@ func main() {
 		log.Warn("Did not receive a correct twitproducer")
 	}
 
-	for {
-		_, err = tp.RelayMessages(10)
+	err = tp.RelayMessages()
 
-		if nil != err {
-			log.Warn("Did not send all 10 messages, error = %v", err)
-			break
-		}
+	if nil != err {
+		log.Warn("%v", err)
 	}
+
 }

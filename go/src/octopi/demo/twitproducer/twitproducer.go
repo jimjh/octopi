@@ -43,59 +43,42 @@ func NewTwitProducer(username string, password string, hostport string, id *stri
 
 // RelayMessages relays the requested amount of messages from the producer
 // to the lead broker and returns the amount of messages sent
-func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
+func (tp *TwitProducer) RelayMessages() error {
 
 	response, err := tp.client.Do(tp.request)
 
 	if nil != err {
-		return 0, err
+		return err
 	}
 
-	var i int32 = 0
-	for i = 0; i < numMsgs; i++ {
-		// reads in a whole json message at a time
-		buffer := make([]byte, BUFSIZ)
+	dec := json.NewDecoder(response.Body)
+	for {
 
-		nbytes, err := response.Body.Read(buffer)
-
-		// return if we get a read error. could be connection cut off
-		if nil != err {
-			return i, err
-		}
-
-		// truncate the buffer for JSON decoding
-		buffer = buffer[:nbytes]
-		t := &twitproto.TweetSrc{}
-
-		// unmarshal to retain fields we need and to remove nulls
-		err = json.Unmarshal(buffer, t)
-
-		// json error. decrement count and continue to try again
-		if nil != err {
+		var v map[string]interface{}
+		if err := dec.Decode(&v); nil != err {
 			fmt.Printf("Error: %s\n", err.Error())
-			i--
 			continue
 		}
 
-		tweetToSend := getTweet(t)
-
-		// TODO: what do we send?
-		//marshalTweet, _ := json.Marshal(tweetToSend)
-
-		//err = tp.Producer.Send(TOPIC, marshalTweet)
-
-		if len(tweetToSend.Text) == 0 {
-			i--
+		if nil == v["text"] {
 			continue
 		}
-		err = tp.producer.Send(TOPIC, []byte(tweetToSend.Text))
 
-		if nil != err {
-			return i, err
+		tweet := v["text"].(string)
+
+		if len(tweet) == 0 {
+			continue
 		}
+
+		if err := tp.producer.Send(TOPIC, []byte(tweet)); nil != err {
+			fmt.Printf("Connection lost.\n")
+			return err
+		}
+
 	}
 
-	return i, nil
+	return nil
+
 }
 
 // getTweet converts from TweetSrc to actual Tweet by removing use of string pointers
