@@ -1,4 +1,4 @@
-PACKAGES = octopi/util/config octopi/api/protocol octopi/impl/producer
+PACKAGES = octopi/util/config octopi/api/protocol octopi/impl/producer octopi/impl/brokerimpl
 
 .PHONY: install
 install:
@@ -8,5 +8,5 @@ install:
 	go test -i $(PACKAGES)
 
 .PHONY: test
-test:
+test: install
 	for package in $(PACKAGES); do go test -v $$package; done

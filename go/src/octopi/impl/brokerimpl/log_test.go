@@ -22,9 +22,8 @@ func TestReadWrite(t *testing.T) {
 	var i byte
 	for i = 1; i <= 10; i++ {
 		payload := []byte{i}
-		message := protocol.Message{0, payload, crc32.ChecksumIEEE(payload)}
-		entry := &LogEntry{message, make([]byte, 32)}
-		if nil != log.WriteNext(entry) {
+		message := &protocol.Message{int64(i), payload, crc32.ChecksumIEEE(payload)}
+		if _, err := log.Append("x", message); nil != err {
 			t.Errorf("Error: %s", err.Error())
 		}
 	}
