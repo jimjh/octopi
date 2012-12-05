@@ -1,35 +1,35 @@
 package producer
 
 import (
-	"octopi/api/twitproto"
 	"encoding/json"
 	"net/http"
+	"octopi/api/twitproto"
 )
 
-const(
+const (
 	STREAM_URL = "https://stream.twitter.com/1.1/statuses/sample.json"
-	METHOD = "GET"
-	TOPIC = "tweet" // temporary topic that all the tweets go under
+	METHOD     = "GET"
+	TOPIC      = "tweet" // temporary topic that all the tweets go under
 )
 
-const(
+const (
 	BUFSIZ = 5000 // large buffer to make sure contain message
 )
 
 type TwitProducer struct {
 	Producer
-	client *http.Client
+	client  *http.Client
 	request *http.Request
 }
 
 // New TwitProducer creates a new producer for a twitter account as supplied by the user
-func NewTwitProducer(username string, password string, hostport string, id *string) (*TwitProducer, error){
+func NewTwitProducer(username string, password string, hostport string, id *string) (*TwitProducer, error) {
 
 	client := &http.Client{}
 
 	request, err := http.NewRequest(METHOD, STREAM_URL, nil)
 
-	if nil !=err {
+	if nil != err {
 		return nil, err
 	}
 
@@ -41,7 +41,7 @@ func NewTwitProducer(username string, password string, hostport string, id *stri
 
 // RelayMessages relays the requested amount of messages from the producer
 // to the lead broker and returns the amount of messages sent
-func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error){
+func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 	response, err := tp.client.Do(tp.request)
 
@@ -50,7 +50,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error){
 	}
 
 	var i int32 = 0
-	for i = 0; i<numMsgs; i++ {
+	for i = 0; i < numMsgs; i++ {
 		// reads in a whole json message at a time
 		buffer := make([]byte, BUFSIZ)
 
@@ -69,7 +69,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error){
 		err = json.Unmarshal(buffer, t)
 
 		// json error. decrement count and continue to try again
-		if nil != err{
+		if nil != err {
 			i--
 			continue
 		}
@@ -89,32 +89,32 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error){
 }
 
 // getTweet converts from TweetSrc to actual Tweet by removing use of string pointers
-func getTweet(t *twitproto.TweetSrc) twitproto.Tweet{
+func getTweet(t *twitproto.TweetSrc) twitproto.Tweet {
 	tweet := twitproto.Tweet{}
 
 	// tedious check for nils because Go will not allow nil strings 
-	if t.Text!=nil{
+	if t.Text != nil {
 		tweet.Text = *t.Text
 	}
-	if t.Geo!=nil{
+	if t.Geo != nil {
 		tweet.Geo = *t.Geo
 	}
-	if t.In_reply_to_screen_name!=nil{
+	if t.In_reply_to_screen_name != nil {
 		tweet.In_reply_to_screen_name = *t.In_reply_to_screen_name
 	}
-	if t.Source!=nil{
+	if t.Source != nil {
 		tweet.Source = *t.Source
 	}
-	if t.Contributors!=nil{
+	if t.Contributors != nil {
 		tweet.Contributors = *t.Contributors
 	}
-	if t.In_reply_to_status_id!=nil{
+	if t.In_reply_to_status_id != nil {
 		tweet.In_reply_to_status_id = *t.In_reply_to_status_id
 	}
-	if t.In_reply_to_user_id!=nil {
+	if t.In_reply_to_user_id != nil {
 		tweet.In_reply_to_user_id = *t.In_reply_to_user_id
 	}
-	if t.Created_at!=nil{
+	if t.Created_at != nil {
 		tweet.Created_at = *t.Created_at
 	}
 
