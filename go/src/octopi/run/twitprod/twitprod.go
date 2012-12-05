@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	var broker = flag.String("broker", "localhost:12345", "host and port number of broker")
+	var broker = flag.String("register", "localhost:12345", "host and port number of broker")
 	flag.Parse()
 
 	tp, err := producer.NewTwitProducer("octopx", "octopioctopus", *broker, nil)
@@ -16,9 +16,12 @@ func main() {
 		log.Warn("Did not receive a correct twitproducer")
 	}
 
-	_, err = tp.RelayMessages(10)
+	for {
+		_, err = tp.RelayMessages(10)
 
-	if nil != err {
-		log.Warn("Did not send all 10 messages")
+		if nil != err {
+			log.Warn("Did not send all 10 messages, error = %v", err)
+			break
+		}
 	}
 }
