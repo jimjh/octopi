@@ -54,6 +54,7 @@ func TestTails(t *testing.T) {
 		}
 		expected[name] = 40
 		log.Close()
+		defer os.Remove(log.Name())
 	}
 
 	broker, _ := New(&config.Config)
