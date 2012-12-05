@@ -72,7 +72,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 		// json error. decrement count and continue to try again
 		if nil != err {
-			fmt.Println(string(buffer))
+			fmt.Printf("Error: %s\n", err.Error())
 			i--
 			continue
 		}
