@@ -124,7 +124,7 @@ define(['./util', './config', './protocol'],
       var checksum = protocol.checksum(message);
       // TODO: fix checksum and length issues for special characters
       subscription.offset += message.Length + 40;
-      if (true || checksum == message.Checksum) return callback(message.Payload);
+      if (true || checksum == message.Checksum) return callback(protocol.unicode(message.Payload));
       throw new Error('Incorrect checksum. Expected ' + checksum + ', was ' + message.Checksum);
     };
 

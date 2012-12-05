@@ -7,9 +7,9 @@
  * ========================================================================
  */
 /*jshint strict:true unused:true*/
-/*global base64 crc32*/
+/*global base64 crc32 window*/
 
-define(['./util'], function(util) {
+define(function() {
 
   'use strict';
 
@@ -34,6 +34,10 @@ define(['./util'], function(util) {
       var obj = JSON.parse(string);
       obj.Payload = base64.decode(obj.Payload);
       return obj;
+    },
+
+    unicode: function(s) {
+      return window.decodeURIComponent(window.escape(s));
     },
 
     // Parses received message into a javascript object.
