@@ -40,6 +40,13 @@ func (t *Test) AssertPositive(x int64, prefix string) {
 	}
 }
 
+// AssertTrue ensures that the given variable is true.
+func (t *Test) AssertTrue(x bool, prefix string) {
+	if !x {
+		t.Errorf("%s: variable should be true.")
+	}
+}
+
 // AssertEqual uses the given matcher to compare two values. It logs an error
 // if the matcher returns false.
 func (t *Test) AssertEqual(matcher Matcher,
