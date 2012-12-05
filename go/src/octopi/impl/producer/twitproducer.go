@@ -2,6 +2,7 @@ package producer
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"octopi/api/twitproto"
 )
@@ -56,7 +57,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 		nbytes, err := response.Body.Read(buffer)
 
-		// return if we get a read error. could be connection cut off 
+		// return if we get a read error. could be connection cut off
 		if nil != err {
 			return i, err
 		}
@@ -70,7 +71,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 
 		// json error. decrement count and continue to try again
 		if nil != err {
-			fmt.Println((string)buffer)
+			fmt.Println(string(buffer))
 			i--
 			continue
 		}
@@ -96,7 +97,7 @@ func (tp *TwitProducer) RelayMessages(numMsgs int32) (int32, error) {
 func getTweet(t *twitproto.TweetSrc) twitproto.Tweet {
 	tweet := twitproto.Tweet{}
 
-	// tedious check for nils because Go will not allow nil strings 
+	// tedious check for nils because Go will not allow nil strings
 	if t.Text != nil {
 		tweet.Text = *t.Text
 	}
