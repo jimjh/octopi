@@ -88,10 +88,6 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 	expected := broker.tails()
 	for topic, offset := range expected {
-		// FIXME
-		//if offset == f.tails[topic]+1 {
-		//	log.Panic("offset: %d, tail: %d", offset, f.tails[topic])
-		//}
 		if offset != f.tails[topic] {
 			log.Debug("Not fully caught up yet for %s. %d -> %d", topic, f.tails[topic], offset)
 			return false
@@ -115,8 +111,9 @@ func (f *Follower) caughtUp(broker *Broker) bool {
 
 	// add in-sync follower
 	// check if disconnect from register. if so, exit.
-	websocket.JSON.Send(broker.regConn, addFollow)
-	// FIXME: exiting is not the correct thing to do
+	if err := websocket.JSON.Send(broker.regConn, addFollow); nil != err {
+		log.Warn("Unable to update register: %s.", err.Error())
+	}
 
 	return true
 
@@ -247,10 +244,10 @@ func (b *Broker) catchUp() error {
 }
 
 func (b *Broker) failSafeCatchUp() {
-//	err := b.catchUp()
-//	if nil != err {
-//		log.Warn("Changing leader %s", err.Error())
-//		b.ChangeLeader()
-//	}
+	//	err := b.catchUp()
+	//	if nil != err {
+	//		log.Warn("Changing leader %s", err.Error())
+	//		b.ChangeLeader()
+	//	}
 	b.catchUp()
 }

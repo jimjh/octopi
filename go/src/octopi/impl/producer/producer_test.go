@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 )
 
 type ptr struct {
@@ -74,7 +75,7 @@ func lost(count *int) func(*websocket.Conn) {
 	}
 }
 
-// TestRetries ensures that producer retries is the connection is lost.
+// TestRetries ensures that producer retries if the connection is lost.
 func TestRetries(tester *testing.T) {
 
 	t := test.New(tester)
@@ -90,10 +91,12 @@ func TestRetries(tester *testing.T) {
 	go server.Serve(listener)
 
 	producer := New("localhost:11111", nil)
-	err = producer.Send("x", []byte("abc"))
-	t.AssertNotNil(err, "producer.Send")
+	go producer.Send("x", []byte("abc"))
 
+	time.Sleep(2 * time.Second)
 	listener.Close()
-	t.AssertEqual(new(test.IntMatcher), MAX_RETRIES, count)
+	if 1 >= count {
+		tester.Errorf("Expected count to be more than 1.")
+	}
 
 }

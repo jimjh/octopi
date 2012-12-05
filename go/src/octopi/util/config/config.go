@@ -29,13 +29,15 @@ type Config struct {
 //    config := c.Init("conf.json")
 func Init(filename string) (*Config, error) {
 
-	config := &Config{make(map[string]string), filepath.Dir(filename)}
+	config := &Config{make(map[string]string), ""}
 	data, err := ioutil.ReadFile(filename)
 	if nil != err {
 		return nil, err
 	}
 
 	err = json.Unmarshal(data, config)
+	config.Base = filepath.Dir(filename)
+
 	return config, err
 
 }

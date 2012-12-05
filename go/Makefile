@@ -1,14 +1,12 @@
+PACKAGES = octopi/util/config octopi/api/protocol octopi/impl/producer octopi/impl/brokerimpl
+
 .PHONY: install
 install:
 	go install octopi/run/broker
 	go install octopi/run/register
 	go install octopi/run/producer
-	go test octopi/util/config -i
-	go test octopi/api/protocol -i
-	go test octopi/impl/producer -i
+	go test -i $(PACKAGES)
 
 .PHONY: test
-test:
-	go test octopi/util/config -v
-	go test octopi/api/protocol -v
-	go test octopi/impl/producer -v
+test: install
+	for package in $(PACKAGES); do go test -v $$package; done
