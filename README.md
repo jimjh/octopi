@@ -21,10 +21,36 @@ To install the websockets package, execute the following:
   export GOPATH="/path/to/git/repo/go"
   ```
 
+## Testing
+For unit tests, run
+
+    $> cd go; make test
+
+For integration tests, run
+
+    $> tests/basictests.sh
+    $> tests/transitiontests.sh
+
 ## Run
+All paths below are relative to the `go` directory.
+
 To start a broker,
 
     $> go install octopi/run/broker
-    $> bin/broker
+    $> bin/broker -conf config/leader.json
+
+To start a register,
+
+    $> go install octopi/run/register
+    $> bin/register -conf config/register.json
+
+To start followers,
+
+    $> go install octopi/run/broker
+    $> bin/broker -conf config/follower1.json
+
+Note that the leader/follower relationships are only for startup purposes. Once
+the system is running, all brokers should join as followers. If the leader
+dies, one of the followers will be elected to become the leader.
 
   [websocket]: http://go.pkgdoc.org/code.google.com/p/go.net/websocket
