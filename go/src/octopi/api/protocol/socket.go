@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// STYLE NOTE: Exported methods request for locks before they do anything. For
+// example, `Close` gets the socket lock before calling `close`, which doesn't
+// request for locks. This convention only applies to this file.
+
 // Max number of milliseconds between retries.
 const MAX_RETRY_INTERVAL = 2000
 
@@ -30,6 +34,8 @@ type Socket struct {
 	lock     sync.Mutex      // lock
 }
 
+// Reset resets the sockets HostPort to the given address. This closes the
+// connections and interrupts any pending Sends.
 func (s *Socket) Reset(addr string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -37,7 +43,7 @@ func (s *Socket) Reset(addr string) {
 	s.HostPort = addr
 }
 
-// Close closes the connection.
+// Close closes the connection. This interrupts any pending Sends.
 func (s *Socket) Close() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()

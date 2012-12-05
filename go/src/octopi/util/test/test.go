@@ -33,6 +33,13 @@ func (t *Test) AssertNotNil(x interface{}, prefix string) {
 	t.Errorf("%s: variable should not be nil.", prefix)
 }
 
+// AssertPositive checks if the given number is greater than zero.
+func (t *Test) AssertPositive(x int64, prefix string) {
+	if x <= 0 {
+		t.Errorf("%s: variable should be positive.", prefix)
+	}
+}
+
 // AssertEqual uses the given matcher to compare two values. It logs an error
 // if the matcher returns false.
 func (t *Test) AssertEqual(matcher Matcher,
