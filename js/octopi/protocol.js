@@ -13,6 +13,10 @@ define(function() {
 
   'use strict';
 
+  var unicode = function(s) {
+    return window.decodeURIComponent(window.escape(s));
+  };
+
   return {
 
     // Endpoint for subscription requests.
@@ -36,9 +40,7 @@ define(function() {
       return obj;
     },
 
-    unicode: function(s) {
-      return window.decodeURIComponent(window.escape(s));
-    },
+    unicode: unicode,
 
     // Parses received message into a javascript object.
     message: function(string) {
@@ -50,7 +52,7 @@ define(function() {
 
     // Calculates the checksum of the message's payload.
     checksum: function(message) {
-      return crc32(message.Payload);
+      return crc32(unicode(message.Payload));
     }
 
   };
