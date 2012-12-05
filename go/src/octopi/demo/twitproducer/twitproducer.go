@@ -56,7 +56,7 @@ func (tp *TwitProducer) RelayMessages() error {
 
 		var v map[string]interface{}
 		if err := dec.Decode(&v); nil != err {
-			fmt.Printf("Error: %s\n", err.Error())
+			fmt.Printf("Error reading from stream: %s\n", err.Error())
 			continue
 		}
 
