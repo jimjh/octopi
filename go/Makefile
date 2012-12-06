@@ -1,4 +1,4 @@
-PACKAGES = octopi/util/config octopi/api/protocol octopi/impl/producer octopi/impl/brokerimpl
+PACKAGES = octopi/util/config octopi/api/protocol octopi/impl/producer octopi/impl/brokerimpl octopi/demo/twitprod
 
 .PHONY: install
 install:
