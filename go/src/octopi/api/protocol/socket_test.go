@@ -85,13 +85,8 @@ func TestRedirects(tester *testing.T) {
 	listener2, err := net.Listen("tcp", ":11112")
 	t.AssertNil(err, "net.Listen")
 
-	server1 := &http.Server{
-		Handler: websocket.Handler(redirect(&count1)),
-	}
-
-	server2 := &http.Server{
-		Handler: websocket.Handler(accept(&count2)),
-	}
+	server1 := &http.Server{Handler: websocket.Handler(redirect(&count1))}
+	server2 := &http.Server{Handler: websocket.Handler(accept(&count2))}
 
 	go server1.Serve(listener1)
 	go server2.Serve(listener2)

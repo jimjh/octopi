@@ -184,3 +184,17 @@ func TestTruncateLog(tester *testing.T) {
 	log.Close()
 
 }
+
+// TestOpenError ensures that OpenLog returns an error if the file cannot be
+// opened.
+func TestOpenError(tester *testing.T) {
+
+	config := newTestConfig()
+	config.Base = "/some_non_existing_dir_on_your_machine"
+
+	t := test.New(tester)
+
+	_, err := OpenLog(config, "temp", 0)
+	t.AssertNotNil(err, "OpenLog")
+
+}

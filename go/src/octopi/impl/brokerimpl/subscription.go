@@ -51,7 +51,7 @@ func (s *Subscription) Serve() error {
 			return nil
 		default:
 			if err := s.next(); nil != err {
-				log.Error("Unable to read from log: ", err.Error())
+				log.Error("Unable to serve subscription: %s", err.Error())
 				return err
 			}
 		}
