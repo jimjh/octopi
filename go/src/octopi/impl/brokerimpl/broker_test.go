@@ -10,18 +10,21 @@ import (
 	"testing"
 )
 
+const testRegisterPort = "11111"
+const testSocketPort = "11112"
+
 // newTestConfig creates a new test configuration.
 func newTestConfig() *Config {
 	options := &config.Config{Options: make(map[string]string), Base: "/"}
 	options.Options["role"] = "leader"
 	options.Options["log_dir"] = os.TempDir()
-	options.Options["register"] = "localhost:11111"
+	options.Options["register"] = "localhost:" + testRegisterPort
 	return &Config{*options}
 }
 
 // newTestRegister creates a new test register.
 func newTestRegister() net.Listener {
-	listener, err := net.Listen("tcp", ":11111")
+	listener, err := net.Listen("tcp", ":"+testRegisterPort)
 	if nil != err {
 		panic(err)
 	}

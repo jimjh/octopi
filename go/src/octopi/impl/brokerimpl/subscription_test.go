@@ -107,7 +107,7 @@ func TestServe(tester *testing.T) {
 
 func newTestClient(t *test.Test, f func(*websocket.Conn)) (*websocket.Conn, net.Listener) {
 
-	listener, err := net.Listen("tcp", ":11112")
+	listener, err := net.Listen("tcp", ":"+testSocketPort)
 	if nil != err {
 		panic(err)
 	}
@@ -115,7 +115,7 @@ func newTestClient(t *test.Test, f func(*websocket.Conn)) (*websocket.Conn, net.
 	server := &http.Server{Handler: websocket.Handler(f)}
 	go server.Serve(listener)
 
-	conn, err := websocket.Dial("ws://localhost:11112", "", "xyz:12312")
+	conn, err := websocket.Dial("ws://localhost:"+testSocketPort, "", "xyz:12312")
 	if nil != err {
 		panic(err)
 	}
@@ -138,4 +138,44 @@ func sum(t *test.Test, x *byte) func(*websocket.Conn) {
 	}
 }
 
-// TODO: test cond wait
+// TestWait ensures that subscribers can wait on producers.
+func TestWait(tester *testing.T) {
+
+	config := newTestConfig()
+	t := test.New(tester)
+	var result byte = 0
+
+	register := newTestRegister()
+	client, listener := newTestClient(t, sum(t, &result))
+	defer register.Close()
+	defer client.Close()
+	defer listener.Close()
+
+	broker, err := New(&config.Config)
+	t.AssertNil(err, "New")
+
+	subscription, err := NewSubscription(broker, client, "temp", 0)
+	t.AssertNil(err, "NewSubscription")
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		var i byte
+		for i = 1; i <= 10; i++ {
+			payload := []byte{i}
+			message := &protocol.Message{int64(i), payload, crc32.ChecksumIEEE(payload)}
+			err = broker.Publish("temp", "x", message)
+			t.AssertNil(err, "broker.Publish")
+		}
+		time.Sleep(500 * time.Millisecond)
+		subscription.quit <- nil
+		broker.cond.Broadcast()
+	}()
+
+	err = subscription.Serve()
+	t.AssertNil(err, "subscription.Serve()")
+	t.AssertEqual(new(test.IntMatcher), 55, int(result))
+
+	log, err := OpenLog(config, "temp", 0)
+	os.Remove(log.Name())
+
+}
