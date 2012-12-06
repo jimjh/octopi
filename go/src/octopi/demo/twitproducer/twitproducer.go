@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"octopi/demo/twitproto"
 	"octopi/impl/producer"
 )
 
@@ -79,37 +78,4 @@ func (tp *TwitProducer) RelayMessages() error {
 
 	return nil
 
-}
-
-// getTweet converts from TweetSrc to actual Tweet by removing use of string pointers
-func getTweet(t *twitproto.TweetSrc) twitproto.Tweet {
-	tweet := twitproto.Tweet{}
-
-	// tedious check for nils because Go will not allow nil strings
-	if t.Text != nil {
-		tweet.Text = *t.Text
-	}
-	if t.Geo != nil {
-		tweet.Geo = *t.Geo
-	}
-	if t.In_reply_to_screen_name != nil {
-		tweet.In_reply_to_screen_name = *t.In_reply_to_screen_name
-	}
-	if t.Source != nil {
-		tweet.Source = *t.Source
-	}
-	if t.Contributors != nil {
-		tweet.Contributors = *t.Contributors
-	}
-	if t.In_reply_to_status_id != nil {
-		tweet.In_reply_to_status_id = *t.In_reply_to_status_id
-	}
-	if t.In_reply_to_user_id != nil {
-		tweet.In_reply_to_user_id = *t.In_reply_to_user_id
-	}
-	if t.Created_at != nil {
-		tweet.Created_at = *t.Created_at
-	}
-
-	return tweet
 }
