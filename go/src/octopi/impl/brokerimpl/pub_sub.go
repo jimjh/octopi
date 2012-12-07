@@ -3,6 +3,7 @@ package brokerimpl
 // This file contains the publish and subscribe functions.
 import (
 	"code.google.com/p/go.net/websocket"
+	"errors"
 	"octopi/api/protocol"
 	"octopi/util/log"
 )
@@ -74,6 +75,10 @@ func (b *Broker) Publish(topic, producer string, msg *protocol.Message) error {
 	// TODO: topic-specific locks
 	b.lock.Lock()
 	defer b.lock.Unlock()
+
+	if b.role != LEADER {
+		return errors.New("I am not the leader.")
+	}
 
 	file, err := b.getOrOpenLog(topic)
 	if nil != err {
